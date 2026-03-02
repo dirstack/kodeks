@@ -13,14 +13,9 @@ Kodeks provides reusable, opinionated configurations for maintaining consistent 
 bun add -d @dirstack/kodeks
 ```
 
-This will automatically install all required dependencies.
-
-> [!NOTE]
-> All tools are installed together for simplicity, even if you only use some of the configurations. This ensures all CLIs and configs work correctly and avoids resolution issues.
-
 ## Usage
 
-### oxlint Configuration
+### oxlint
 
 Create a `.oxlintrc.json` file in your project root:
 
@@ -46,7 +41,7 @@ For TanStack projects, use the TanStack preset:
 }
 ```
 
-### oxfmt Configuration
+### oxfmt
 
 Since oxfmt does not support configuration inheritance, you have two options:
 
@@ -64,19 +59,17 @@ Add to your `package.json` scripts:
 
 **Option 2: Copy configuration locally**
 
-Copy the configuration file to your project root and reference it directly:
-
 ```bash
-cp ./node_modules/@dirstack/kodeks/configs/oxfmt.json .
+cp ./node_modules/@dirstack/kodeks/configs/oxfmt.json ./.oxfmtrc.json
 ```
 
-Then use:
+### Commitlint
+
+Requires `@commitlint/config-conventional` as a peer dependency:
 
 ```bash
-oxfmt --config ./oxfmt.json --write .
+bun add -d @commitlint/config-conventional
 ```
-
-### Commitlint Configuration
 
 Create a `commitlint.json` file in your project root:
 
@@ -86,7 +79,35 @@ Create a `commitlint.json` file in your project root:
 }
 ```
 
-### Lefthook Configuration
+### Semantic Release
+
+Requires `conventional-changelog-conventionalcommits` as a peer dependency:
+
+```bash
+bun add -d semantic-release conventional-changelog-conventionalcommits
+```
+
+Create a `release.json` file in your project root:
+
+```json
+{
+  "extends": "@dirstack/kodeks/semantic-release"
+}
+```
+
+A dry-run variant is also available for CI validation:
+
+```json
+{
+  "extends": "@dirstack/kodeks/semantic-release-dry-run"
+}
+```
+
+### Lefthook
+
+```bash
+bun add -d lefthook
+```
 
 Create a `lefthook.json` file in your project root and extend the hooks you need:
 
@@ -101,9 +122,10 @@ Create a `lefthook.json` file in your project root and extend the hooks you need
 ```
 
 **Available hooks:**
-- `lefthook-oxlint.json` - Lints and fixes staged files with oxlint (pre-commit)
-- `lefthook-oxfmt.json` - Formats staged files with oxfmt (pre-commit)
-- `lefthook-commitlint.json` - Validates commit messages (commit-msg)
+- `lefthook-oxlint.json` — Lints and fixes staged files with oxlint (pre-commit)
+- `lefthook-oxfmt.json` — Formats staged files with oxfmt (pre-commit)
+- `lefthook-commitlint.json` — Validates commit messages (commit-msg)
+- `lefthook-typescript.json` — Type checks with tsc (pre-commit)
 
 ## Agentic Coding
 
