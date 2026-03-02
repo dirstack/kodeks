@@ -41,14 +41,38 @@
     "typescript": "^5.9.3"
   },
   "peerDependencies": {
+    "@commitlint/cli": ">=20",
     "@commitlint/config-conventional": ">=20",
-    "conventional-changelog-conventionalcommits": ">=9"
+    "conventional-changelog-conventionalcommits": ">=9",
+    "lefthook": ">=2",
+    "oxfmt": ">=0.35",
+    "oxlint": ">=1",
+    "semantic-release": ">=25",
+    "typescript": ">=5"
   },
   "peerDependenciesMeta": {
+    "@commitlint/cli": {
+      "optional": true
+    },
     "@commitlint/config-conventional": {
       "optional": true
     },
     "conventional-changelog-conventionalcommits": {
+      "optional": true
+    },
+    "lefthook": {
+      "optional": true
+    },
+    "oxfmt": {
+      "optional": true
+    },
+    "oxlint": {
+      "optional": true
+    },
+    "semantic-release": {
+      "optional": true
+    },
+    "typescript": {
       "optional": true
     }
   },

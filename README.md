@@ -7,15 +7,13 @@ Shared linter configurations for TypeScript projects.
 
 Kodeks provides reusable, opinionated configurations for maintaining consistent code quality across TypeScript projects.
 
-## Installation
-
-```bash
-bun add -d @dirstack/kodeks
-```
-
 ## Usage
 
 ### oxlint
+
+```bash
+bun add -d @dirstack/kodeks oxlint
+```
 
 Create a `.oxlintrc.json` file in your project root:
 
@@ -43,6 +41,10 @@ For TanStack projects, use the TanStack preset:
 
 ### oxfmt
 
+```bash
+bun add -d @dirstack/kodeks oxfmt
+```
+
 Since oxfmt does not support configuration inheritance, you have two options:
 
 **Option 1: Reference via CLI flag**
@@ -65,10 +67,8 @@ cp ./node_modules/@dirstack/kodeks/configs/oxfmt.json ./.oxfmtrc.json
 
 ### Commitlint
 
-Requires `@commitlint/config-conventional` as a peer dependency:
-
 ```bash
-bun add -d @commitlint/config-conventional
+bun add -d @dirstack/kodeks @commitlint/cli @commitlint/config-conventional
 ```
 
 Create a `commitlint.json` file in your project root:
@@ -81,10 +81,8 @@ Create a `commitlint.json` file in your project root:
 
 ### Semantic Release
 
-Requires `conventional-changelog-conventionalcommits` as a peer dependency:
-
 ```bash
-bun add -d semantic-release conventional-changelog-conventionalcommits
+bun add -d @dirstack/kodeks semantic-release conventional-changelog-conventionalcommits
 ```
 
 Create a `release.json` file in your project root:
@@ -106,7 +104,7 @@ A dry-run variant is also available for CI validation:
 ### Lefthook
 
 ```bash
-bun add -d lefthook
+bun add -d @dirstack/kodeks lefthook
 ```
 
 Create a `lefthook.json` file in your project root and extend the hooks you need:
