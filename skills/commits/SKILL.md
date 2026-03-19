@@ -33,7 +33,9 @@ Guidelines for writing consistent and clear commit messages.
 
 ## Subject Rules
 
-- **lowercase**: description starts with a lowercase letter.
+- **lowercase start**: description starts with a lowercase letter.
+- **acronyms allowed**: uppercase acronyms like SEO, FAQ, API are fine (e.g., "fix SEO meta tags").
+- **dashes allowed**: hyphens in descriptions are fine (e.g., "add user-friendly layout").
 - **imperative mood**: use "add", not "added" or "adds".
 - **no period**: do not end the subject with a period.
 - **max 72 chars**: keep it concise.
@@ -55,6 +57,8 @@ feat!: remove deprecated API endpoint
 ### Good
 - `feat: add user authentication flow`
 - `fix: resolve login redirect loop`
+- `fix: improve SEO meta tag rendering`
+- `feat: add user-friendly FAQ page`
 - `refactor: extract validation logic into separate module`
 - `docs: update API documentation for v2 endpoints`
 - `chore: update dependencies to latest versions`
@@ -64,4 +68,4 @@ feat!: remove deprecated API endpoint
 - `fix: Bug fix` (vague)
 - `feat: add user auth and update profile page` (multiple logical changes)
 - `FEAT: Add user auth` (uppercase type)
-- `feat: Add user auth` (uppercase description)
+- `feat: Add user auth` (uppercase description start)
