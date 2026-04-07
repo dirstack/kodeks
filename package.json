@@ -17,9 +17,10 @@
   ],
   "type": "module",
   "exports": {
-    "./oxlint": "./configs/oxlint-base.json",
-    "./oxlint-next": "./configs/oxlint-next.json",
-    "./oxlint-tanstack": "./configs/oxlint-tanstack.json",
+    "./oxlint": "./configs/oxlint-base.ts",
+    "./oxlint-next": "./configs/oxlint-next.ts",
+    "./oxlint-tanstack": "./configs/oxlint-tanstack.ts",
+    "./oxfmt": "./configs/oxfmt.ts",
     "./commitlint": "./configs/commitlint.json",
     "./semantic-release": "./configs/semantic-release.json",
     "./semantic-release-dry-run": "./configs/semantic-release-dry-run.json"
@@ -35,8 +36,8 @@
     "@commitlint/config-conventional": "^20.4.2",
     "conventional-changelog-conventionalcommits": "^9.1.0",
     "lefthook": "^2.1.1",
-    "oxfmt": "^0.35.0",
-    "oxlint": "^1.50.0",
+    "oxfmt": "^0.44.0",
+    "oxlint": "^1.59.0",
     "semantic-release": "^25.0.3",
     "typescript": "^5.9.3"
   },
@@ -45,8 +46,8 @@
     "@commitlint/config-conventional": ">=20",
     "conventional-changelog-conventionalcommits": ">=9",
     "lefthook": ">=2",
-    "oxfmt": ">=0.35",
-    "oxlint": ">=1",
+    "oxfmt": ">=0.44",
+    "oxlint": ">=1.59",
     "semantic-release": ">=25",
     "typescript": ">=5"
   },
