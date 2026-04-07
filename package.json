@@ -13,14 +13,27 @@
   },
   "files": [
     "configs",
+    "dist",
     "skills"
   ],
   "type": "module",
   "exports": {
-    "./oxlint": "./configs/oxlint-base.ts",
-    "./oxlint-next": "./configs/oxlint-next.ts",
-    "./oxlint-tanstack": "./configs/oxlint-tanstack.ts",
-    "./oxfmt": "./configs/oxfmt.ts",
+    "./oxlint": {
+      "types": "./dist/configs/oxlint-base.d.ts",
+      "default": "./dist/configs/oxlint-base.js"
+    },
+    "./oxlint-next": {
+      "types": "./dist/configs/oxlint-next.d.ts",
+      "default": "./dist/configs/oxlint-next.js"
+    },
+    "./oxlint-tanstack": {
+      "types": "./dist/configs/oxlint-tanstack.d.ts",
+      "default": "./dist/configs/oxlint-tanstack.js"
+    },
+    "./oxfmt": {
+      "types": "./dist/configs/oxfmt.d.ts",
+      "default": "./dist/configs/oxfmt.js"
+    },
     "./commitlint": "./configs/commitlint.json",
     "./semantic-release": "./configs/semantic-release.json",
     "./semantic-release-dry-run": "./configs/semantic-release-dry-run.json"
@@ -29,6 +42,9 @@
     "access": "public"
   },
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "bun run build",
     "prepare": "lefthook install"
   },
   "devDependencies": {

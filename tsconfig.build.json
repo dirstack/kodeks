@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "declaration": true,
+    "rewriteRelativeImportExtensions": true,
+    "rootDir": ".",
+    "outDir": "dist",
+    "strict": true,
+    "skipLibCheck": true,
+    "isolatedModules": true
+  },
+  "include": ["configs/*.ts"]
+}
