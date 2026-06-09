@@ -135,6 +135,7 @@ This package includes agent skills for code formatting, testing, and commit conv
 - `formatting` - Code formatting rules not handled by auto-formatters (arrow functions, exports, types, naming, comments, JSX)
 - `testing` - Best practices, structure, coverage categories, and formatting conventions for writing tests
 - `commits` - Conventional commit types, scopes, and message formatting guidelines
+- `dependencies` - Safely upgrade project dependencies to their latest versions across workspaces
 
 Install all skills using [skills.sh](https://skills.sh):
 
