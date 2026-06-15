@@ -30,6 +30,10 @@
       "types": "./dist/configs/oxlint-tanstack.d.ts",
       "default": "./dist/configs/oxlint-tanstack.js"
     },
+    "./oxlint-tailwind": {
+      "types": "./dist/configs/oxlint-tailwind.d.ts",
+      "default": "./dist/configs/oxlint-tailwind.js"
+    },
     "./oxfmt": {
       "types": "./dist/configs/oxfmt.d.ts",
       "default": "./dist/configs/oxfmt.js"
@@ -61,6 +65,7 @@
     "@commitlint/cli": ">=20",
     "@commitlint/config-conventional": ">=20",
     "conventional-changelog-conventionalcommits": ">=9",
+    "eslint-plugin-better-tailwindcss": ">=4",
     "lefthook": ">=2",
     "oxfmt": ">=0.44",
     "oxlint": ">=1.59",
@@ -69,6 +74,9 @@
   },
   "peerDependenciesMeta": {
     "@commitlint/cli": {
+      "optional": true
+    },
+    "eslint-plugin-better-tailwindcss": {
       "optional": true
     },
     "@commitlint/config-conventional": {
