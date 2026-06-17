@@ -17,5 +17,12 @@ export default defineConfig({
         "func-style": "off",
       },
     },
+    {
+      // TanStack Start entry files must default-export the server handler.
+      files: ["**/{server,start,ssr}.{ts,tsx}"],
+      rules: {
+        "import/no-default-export": "off",
+      },
+    },
   ],
 })

@@ -47,16 +47,12 @@ export default Button
 ## 3. Early Returns
 
 Use early returns for validation and edge cases to keep the main logic flat.
+Single-line guards stay unbraced; brace only when the body wraps to its own line.
 
 ```typescript
 export const processUser = (user: User | null) => {
-  if (!user) {
-    return
-  }
-
-  if (!user.isActive) {
-    return
-  }
+  if (!user) return
+  if (!user.isActive) return
 
   return doSomething(user)
 }
@@ -175,14 +171,14 @@ export type Config = {
 
 ## 9. Array Type Syntax
 
-Use the generic `Array<T>` syntax instead of the `T[]` shorthand.
+Use the `T[]` shorthand instead of the generic `Array<T>` syntax.
 
 ```typescript
 // Correct
-const tags: Array<string> = ["react", "typescript"]
+const tags: string[] = ["react", "typescript"]
 
 // Avoid
-const tags: string[] = ["react", "typescript"]
+const tags: Array<string> = ["react", "typescript"]
 ```
 
 ---
@@ -222,18 +218,14 @@ When a function returns `| undefined`, use a bare `return` instead of `return un
 
 ```typescript
 // Correct
-export const findItem = (items: Array<Item>, id: string): Item | undefined => {
+export const findItem = (items: Item[], id: string): Item | undefined => {
   const item = items.find(i => i.id === id)
-  if (!item) {
-    return
-  }
+  if (!item) return
   return item
 }
 
 // Avoid
-if (!item) {
-  return undefined
-}
+if (!item) return undefined
 ```
 
 ---

@@ -9,8 +9,8 @@ export default defineConfig({
   rules: {
     // Prefer `type` aliases over `interface` declarations.
     "typescript/consistent-type-definitions": ["error", "type"],
-    // Use the generic `Array<T>` syntax instead of the `T[]` shorthand.
-    "typescript/array-type": ["error", { default: "generic" }],
+    // Use the `T[]` shorthand instead of the generic `Array<T>` syntax.
+    "typescript/array-type": ["error", { default: "array" }],
     // Never use `any`; reach for `unknown` and narrow instead.
     "typescript/no-explicit-any": "error",
     // Type-only imports must use `import type`.
@@ -19,14 +19,17 @@ export default defineConfig({
     "prefer-template": "error",
     // Always use strict equality, except for `== null` / `!= null` checks.
     eqeqeq: ["error", "smart"],
-    // Always brace control-flow blocks.
-    curly: ["error", "all"],
+    // Brace control-flow blocks only when the body is on its own line.
+    // Single-line guards like `if (!raw) return null` stay unbraced.
+    curly: ["error", "multi-line"],
     // Allow empty `catch {}` for intentionally ignored failures.
     "no-empty": ["error", { allowEmptyCatch: true }],
     // Components and utilities are arrow functions, not `function` declarations.
     "func-style": ["error", "expression"],
     // Named exports only.
     "import/no-default-export": "error",
+    // No namespace imports like `import * as React`; use named imports.
+    "import/no-namespace": "error",
     // Use `~/*` path aliases; never relative imports.
     "no-restricted-imports": ["error", { patterns: ["./**", "../**"] }],
 
