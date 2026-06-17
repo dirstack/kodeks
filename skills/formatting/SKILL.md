@@ -106,15 +106,20 @@ Follow a standard file order to maintain consistency across the codebase:
 
 ## 6. Curly Braces
 
-Always use curly braces for arrow functions, even for single-line returns.
+Use curly braces with an explicit `return` for named arrow functions, even for
+single-line returns. Trivial inline callbacks may stay in concise (shorthand)
+form.
 
 ```typescript
-// Correct
+// Correct — named arrow gets braces
 export const getName = (user: User) => {
   return user.name
 }
 
-// Avoid
+// Correct — trivial inline callback stays concise
+const ids = users.map(user => user.id)
+
+// Avoid — concise body on a named arrow
 export const getName = (user: User) => user.name
 ```
 
@@ -218,7 +223,7 @@ When a function returns `| undefined`, use a bare `return` instead of `return un
 ```typescript
 // Correct
 export const findItem = (items: Array<Item>, id: string): Item | undefined => {
-  const item = items.find((i) => { return i.id === id })
+  const item = items.find(i => i.id === id)
   if (!item) {
     return
   }
