@@ -9,17 +9,21 @@ Style guide for code formatting decisions not handled by auto-formatters (oxfmt)
 
 ## 1. Function Declaration Style
 
-Always use arrow functions with explicit types. Avoid the `function` keyword for components and utilities.
+Use `function` declarations for named functions — components, hooks, and
+utilities. Reserve arrow functions for inline callbacks passed as arguments.
 
 ```typescript
 // Correct
-export const processData = (input: string): string => {
+export function processData(input: string): string {
   return `Processed: ${input}`
 }
 
-// Avoid
-export function processData(input: string): string {
-  return "Processed: " + input
+// Correct — inline callback stays an arrow
+const ids = users.map(user => user.id)
+
+// Avoid — named function written as an arrow const
+export const processData = (input: string): string => {
+  return `Processed: ${input}`
 }
 ```
 
@@ -31,12 +35,12 @@ Use named exports only. Never use default exports.
 
 ```typescript
 // Correct
-export const Button = () => {
+export function Button() {
   return <button>Click me</button>
 }
 
 // Avoid
-const Button = () => {
+function Button() {
   return <button>Click me</button>
 }
 export default Button
@@ -50,7 +54,7 @@ Use early returns for validation and edge cases to keep the main logic flat.
 Single-line guards stay unbraced; brace only when the body wraps to its own line.
 
 ```typescript
-export const processUser = (user: User | null) => {
+export function processUser(user: User | null) {
   if (!user) return
   if (!user.isActive) return
 
@@ -62,27 +66,31 @@ export const processUser = (user: User | null) => {
 
 ## 4. Type Definitions
 
-Prefer `type` over `interface`. Use namespaces for related types and generics for reusable structures.
+Prefer `interface` over `type` for object shapes. Use `type` for unions,
+intersections, and mapped types. Group related types under a namespace.
 
 ```typescript
 // Correct
-export type User = {
-  id: string
-  name: string
-}
-
-// Avoid
 export interface User {
   id: string
   name: string
 }
 
+// Avoid — object shape as a `type` alias
+export type User = {
+  id: string
+  name: string
+}
+
+// `type` is still correct for unions and mapped types
+export type Status = "active" | "archived"
+
 // Namespaces for related types
 export namespace UserApi {
-  export type Request = {
+  export interface Request {
     userId: string
   }
-  export type Response = {
+  export interface Response {
     user: User
   }
 }
@@ -102,21 +110,22 @@ Follow a standard file order to maintain consistency across the codebase:
 
 ## 6. Curly Braces
 
-Use curly braces with an explicit `return` for named arrow functions, even for
-single-line returns. Trivial inline callbacks may stay in concise (shorthand)
-form.
+Function declarations always use a braced body with an explicit `return`.
+Trivial inline callbacks may stay in concise (shorthand) form.
 
 ```typescript
-// Correct — named arrow gets braces
-export const getName = (user: User) => {
+// Correct — declaration has a braced body
+export function getName(user: User) {
   return user.name
 }
 
 // Correct — trivial inline callback stays concise
 const ids = users.map(user => user.id)
 
-// Avoid — concise body on a named arrow
-export const getName = (user: User) => user.name
+// Avoid — pointless braces and return on a trivial callback
+const ids = users.map(user => {
+  return user.id
+})
 ```
 
 ---
@@ -161,7 +170,7 @@ const finalPrice = calculatePrice(items) // calculate price
 
 **Inline comments** are allowed for arrays, object properties, and complex types:
 ```typescript
-export type Config = {
+export interface Config {
   timeout: number // Timeout in milliseconds.
   retries: number // Number of retry attempts.
 }
@@ -218,7 +227,7 @@ When a function returns `| undefined`, use a bare `return` instead of `return un
 
 ```typescript
 // Correct
-export const findItem = (items: Item[], id: string): Item | undefined => {
+export function findItem(items: Item[], id: string): Item | undefined {
   const item = items.find(i => i.id === id)
   if (!item) return
   return item
@@ -249,7 +258,7 @@ trackEvent("page_view")
 Use an empty `catch {}` block for expected or ignorable failures, and return a safe default.
 
 ```typescript
-export const safeParseJson = (json: string): unknown => {
+export function safeParseJson(json: string): unknown {
   try {
     return JSON.parse(json)
   } catch {}
@@ -311,14 +320,14 @@ Maintain strict TypeScript usage. Never use `any`. Use `unknown` if the type is 
 
 ```typescript
 // Correct
-export const handleData = (data: unknown) => {
+export function handleData(data: unknown) {
   if (typeof data === "string") {
     return data.toUpperCase()
   }
 }
 
 // Avoid
-export const handleData = (data: any) => {
+export function handleData(data: any) {
   return data.toUpperCase()
 }
 ```

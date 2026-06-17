@@ -10,14 +10,6 @@ export default defineConfig({
 
   overrides: [
     {
-      // TanStack Router route components are conventionally declared as named
-      // `function` declarations and wired up via `createFileRoute(...)`.
-      files: ["**/routes/**/*.{ts,tsx}"],
-      rules: {
-        "func-style": "off",
-      },
-    },
-    {
       // TanStack Start entry files must default-export the server handler.
       files: ["**/{server,start,ssr}.{ts,tsx}"],
       rules: {

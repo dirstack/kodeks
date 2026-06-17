@@ -7,8 +7,8 @@ export default defineConfig({
   ignorePatterns: ["**/*.gen.ts", "**/.generated/**"],
 
   rules: {
-    // Prefer `type` aliases over `interface` declarations.
-    "typescript/consistent-type-definitions": ["error", "type"],
+    // Prefer `interface` declarations over `type` aliases for object shapes.
+    "typescript/consistent-type-definitions": ["error", "interface"],
     // Use the `T[]` shorthand instead of the generic `Array<T>` syntax.
     "typescript/array-type": ["error", { default: "array" }],
     // Never use `any`; reach for `unknown` and narrow instead.
@@ -24,8 +24,9 @@ export default defineConfig({
     curly: ["error", "multi-line"],
     // Allow empty `catch {}` for intentionally ignored failures.
     "no-empty": ["error", { allowEmptyCatch: true }],
-    // Components and utilities are arrow functions, not `function` declarations.
-    "func-style": ["error", "expression"],
+    // Named functions (components, utilities) use `function` declarations.
+    // Inline callbacks passed as arguments are exempt and stay as arrows.
+    "func-style": ["error", "declaration"],
     // Named exports only.
     "import/no-default-export": "error",
     // No namespace imports like `import * as React`; use named imports.
