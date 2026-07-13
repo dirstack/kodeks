@@ -5,6 +5,7 @@
     "commands": {
       "format:oxfmt": {
         "glob": "*.{ts,tsx,js,jsx,json,jsonc,css}",
+        "exclude": "\\.gen\\.ts$|\\.generated/",
         "run": "bunx oxfmt --write {staged_files}",
         "stage_fixed": true
       }

@@ -5,6 +5,7 @@
     "commands": {
       "lint:oxlint": {
         "glob": "*.{ts,tsx,js,jsx}",
+        "exclude": "\\.gen\\.ts$|\\.generated/",
         "run": "bunx oxlint --fix {staged_files}",
         "stage_fixed": true
       }
