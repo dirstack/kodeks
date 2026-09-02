@@ -176,6 +176,20 @@ export interface Config {
 }
 ```
 
+Comments describe what the code does and why, **timelessly**. Never reference
+issue or ticket IDs (`ANA-10`, `#128`), the development process, or internal
+narrative — no "we decided", "for now", "smoke test", or tool/agent markers
+like `ponytail:`. A comment must read the same a year later to someone who
+never saw the change that introduced it.
+
+```typescript
+// Correct
+// Both credentials unset disables telemetry; errors still go to stdout.
+
+// Avoid
+// Observability (ANA-10). ponytail: one endpoint, low-volume for now.
+```
+
 ---
 
 ## 9. Array Type Syntax
