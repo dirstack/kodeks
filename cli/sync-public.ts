@@ -4,7 +4,6 @@ import {
   lstat,
   mkdir,
   readdir,
-  readFile,
   readlink,
   rm,
   stat,
@@ -15,14 +14,15 @@ import path from "node:path"
 import { runCommand } from "./command.ts"
 import { CONFIG_FILE, DEFAULT_PACKAGES_DIR } from "./config.ts"
 import type { ReleaseConfig } from "./config.ts"
+import { formatJson, readJson } from "./json.ts"
 import type { PackageJson } from "./prepare-package.ts"
 
-export interface ExtraFile {
+interface ExtraFile {
   source: string // Path in the monorepo, relative to its root.
   destination: string // Path in the mirror, relative to its root.
 }
 
-export interface SyncOptions {
+interface SyncOptions {
   root: string // The monorepo root.
   target: string // A checkout of the public mirror.
   packagesDir: string
@@ -34,11 +34,9 @@ export interface SyncOptions {
 }
 
 // Build output and caches never reach the mirror.
-export const DEFAULT_EXCLUDES = ["dist", "node_modules", ".turbo"]
+const DEFAULT_EXCLUDES = ["dist", "node_modules", ".turbo"]
 
-export const DEFAULT_GITIGNORE = ["node_modules", "dist", ".turbo", "*.log", ".DS_Store", ""].join(
-  "\n",
-)
+const DEFAULT_GITIGNORE = ["node_modules", "dist", ".turbo", "*.log", ".DS_Store", ""].join("\n")
 
 function isInside(parent: string, child: string): boolean {
   const relative = path.relative(parent, child)
@@ -107,10 +105,10 @@ export async function listSyncFiles(
   exclude: string[] = DEFAULT_EXCLUDES,
 ): Promise<string[]> {
   const excluded = new Set(exclude)
+  const packageDirectories = packages.map(packageName => path.join(packagesDir, packageName))
   const files: string[] = []
 
-  for (const packageName of packages) {
-    const packageDirectory = path.join(packagesDir, packageName)
+  for (const packageDirectory of packageDirectories) {
     const stats = await stat(path.join(root, packageDirectory)).catch(() => undefined)
 
     if (!stats?.isDirectory()) throw new Error(`Package directory ${packageDirectory} not found.`)
@@ -118,10 +116,7 @@ export async function listSyncFiles(
     files.push(...(await walk(root, packageDirectory, excluded)))
   }
 
-  const visibleFiles = getGitVisibleFiles(
-    root,
-    packages.map(packageName => path.join(packagesDir, packageName)),
-  )
+  const visibleFiles = getGitVisibleFiles(root, packageDirectories)
 
   return files.filter(file => !visibleFiles || visibleFiles.has(file)).sort()
 }
@@ -146,11 +141,17 @@ async function copyEntry(source: string, destination: string) {
   await copyFile(source, destination)
 }
 
-async function isPublicPackage(root: string, packagesDir: string, packageName: string) {
-  const manifestPath = path.join(root, packagesDir, packageName, "package.json")
-  const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as PackageJson
+async function getPublicPackages(root: string, packagesDir: string, packages: string[]) {
+  const publicPackages: string[] = []
 
-  return manifest.private !== true
+  for (const packageName of packages) {
+    const manifestPath = path.join(root, packagesDir, packageName, "package.json")
+    const manifest = await readJson<PackageJson>(manifestPath)
+
+    if (manifest.private !== true) publicPackages.push(packageName)
+  }
+
+  return publicPackages
 }
 
 export async function syncPublic(options: SyncOptions): Promise<string[]> {
@@ -187,14 +188,7 @@ export async function syncPublic(options: SyncOptions): Promise<string[]> {
   }
 
   const publishPackages =
-    options.publishPackages ??
-    (
-      await Promise.all(
-        packages.map(async name => [name, await isPublicPackage(root, packagesDir, name)] as const),
-      )
-    )
-      .filter(([, isPublic]) => isPublic)
-      .map(([name]) => name)
+    options.publishPackages ?? (await getPublicPackages(root, packagesDir, packages))
 
   // The mirror only needs to know what to publish, never the monorepo's sync settings.
   const mirrorConfig: ReleaseConfig = {
@@ -203,7 +197,7 @@ export async function syncPublic(options: SyncOptions): Promise<string[]> {
   }
 
   await writeFile(path.join(target, ".gitignore"), DEFAULT_GITIGNORE, "utf8")
-  await writeFile(path.join(target, CONFIG_FILE), `${JSON.stringify(mirrorConfig, null, 2)}\n`)
+  await writeFile(path.join(target, CONFIG_FILE), formatJson(mirrorConfig))
 
   // Extras go last, so they can replace the generated .gitignore and config.
   for (const { source, destination } of options.extra) {

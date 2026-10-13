@@ -1,5 +1,6 @@
-import { copyFile, mkdir, readdir, readFile, writeFile } from "node:fs/promises"
+import { copyFile, mkdir, readdir, writeFile } from "node:fs/promises"
 import path from "node:path"
+import { formatJson, readJson } from "./json.ts"
 
 export interface PackageJson {
   name?: string
@@ -69,7 +70,7 @@ export function resolveWorkspaceRange(range: string, version: string): string {
   return specifier
 }
 
-export function resolveWorkspaceDependencies(
+function resolveWorkspaceDependencies(
   dependencies: Record<string, string> | undefined,
   workspaceVersions: Map<string, string>,
 ): Record<string, string> | undefined {
@@ -149,7 +150,7 @@ async function getWorkspaceVersions(packageDirectory: string): Promise<Map<strin
 
     try {
       const manifestPath = path.join(parentDirectory, entry.name, "package.json")
-      const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as PackageJson
+      const manifest = await readJson<PackageJson>(manifestPath)
 
       if (manifest.name && manifest.version) versions.set(manifest.name, manifest.version)
     } catch {}
@@ -160,9 +161,7 @@ async function getWorkspaceVersions(packageDirectory: string): Promise<Map<strin
 
 export async function preparePackage(directory: string): Promise<string> {
   const packageDirectory = path.resolve(directory)
-  const packageJson = JSON.parse(
-    await readFile(path.join(packageDirectory, "package.json"), "utf8"),
-  ) as PackageJson
+  const packageJson = await readJson<PackageJson>(path.join(packageDirectory, "package.json"))
 
   const workspaceVersions = hasWorkspaceDependency(packageJson)
     ? await getWorkspaceVersions(packageDirectory)
@@ -173,7 +172,7 @@ export async function preparePackage(directory: string): Promise<string> {
   const distPackage = generateDistManifest(packageJson, workspaceVersions)
 
   await mkdir(distDirectory, { recursive: true })
-  await writeFile(distPackagePath, `${JSON.stringify(distPackage, null, 2)}\n`, "utf8")
+  await writeFile(distPackagePath, formatJson(distPackage), "utf8")
 
   for (const fileName of COPIED_FILES) {
     try {
