@@ -1,6 +1,5 @@
 import {
   copyFile,
-  cp,
   lstat,
   mkdir,
   readdir,
@@ -85,17 +84,19 @@ async function walk(root: string, directory: string, exclude: Set<string>): Prom
   return files
 }
 
-// Lists the files git does not ignore, so untracked secrets such as a local .env never
-// reach the public mirror. Returns undefined when the root is not inside a git repository.
-function getGitVisibleFiles(root: string, directories: string[]): Set<string> | undefined {
-  try {
-    const args = ["ls-files", "-z", "--cached", "--others", "--exclude-standard", "--"]
-    const result = runCommand("git", [...args, ...directories], { cwd: root })
+// Lists the files git does not ignore under the given paths, so untracked secrets such as a
+// local .env never reach the public mirror. Without git there is no way to tell, so it throws.
+function getGitVisibleFiles(root: string, paths: string[]): Set<string> {
+  const args = ["ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", ...paths]
+  const result = runCommand("git", args, { cwd: root })
 
-    if (result.status !== 0) return
+  if (result.status !== 0) {
+    throw new Error(
+      `git ls-files failed, and only files from a git repository are mirrored:\n${result.stderr.trim()}`,
+    )
+  }
 
-    return new Set(result.stdout.split("\0").filter(Boolean))
-  } catch {}
+  return new Set(result.stdout.split("\0").filter(Boolean))
 }
 
 // Lists every file mirrored from the packages, relative to the monorepo root.
@@ -119,17 +120,49 @@ export async function listSyncFiles(
 
   const visibleFiles = getGitVisibleFiles(root, packageDirectories)
 
-  return files.filter(file => !visibleFiles || visibleFiles.has(file)).sort()
+  return files.filter(file => visibleFiles.has(file)).sort()
 }
 
-// Copies a file, symlink or directory. Directories merge into an existing destination.
+// Expands the extras into single files, each mapped to its path in the mirror. Files git
+// ignores inside an extra directory are skipped. An extra file that git ignores is an error.
+export async function listExtraFiles(
+  root: string,
+  extras: ExtraFile[],
+  exclude: string[] = DEFAULT_EXCLUDES,
+): Promise<ExtraFile[]> {
+  const excluded = new Set(exclude)
+  const files: ExtraFile[] = []
+  const explicitFiles: string[] = []
+
+  for (const extra of extras) {
+    const source = path.normalize(extra.source)
+    const stats = await lstat(path.join(root, source))
+
+    if (!stats.isDirectory()) {
+      files.push({ source, destination: extra.destination })
+      explicitFiles.push(source)
+      continue
+    }
+
+    for (const file of await walk(root, source, excluded)) {
+      const destination = path.join(extra.destination, path.relative(source, file))
+      files.push({ source: file, destination })
+    }
+  }
+
+  if (!files.length) return files
+
+  const visibleFiles = getGitVisibleFiles(root, [...new Set(files.map(file => file.source))])
+  const ignoredFile = explicitFiles.find(file => !visibleFiles.has(file))
+
+  if (ignoredFile) throw new Error(`Extra ${ignoredFile} is ignored by git, so it is not mirrored.`)
+
+  return files.filter(file => visibleFiles.has(file.source))
+}
+
+// Copies a file or a symlink, replacing whatever is at the destination.
 async function copyEntry(source: string, destination: string) {
   const stats = await lstat(source)
-
-  if (stats.isDirectory()) {
-    await cp(source, destination, { recursive: true, force: true, verbatimSymlinks: true })
-    return
-  }
 
   await mkdir(path.dirname(destination), { recursive: true })
 
@@ -171,10 +204,9 @@ export async function syncPublic(options: SyncOptions): Promise<string[]> {
     if (!isSubdirectory(subpath)) throw new Error(`"${subpath}" must be a subdirectory path.`)
   }
 
-  const files = await listSyncFiles(root, packagesDir, packages, [
-    ...DEFAULT_EXCLUDES,
-    ...options.exclude,
-  ])
+  const exclude = [...DEFAULT_EXCLUDES, ...options.exclude]
+  const files = await listSyncFiles(root, packagesDir, packages, exclude)
+  const extraFiles = await listExtraFiles(root, options.extra, exclude)
 
   // Replace the mirrored package tree. The mirror's .git and other root files stay.
   await rm(path.join(target, packagesDir), { recursive: true, force: true })
@@ -202,7 +234,7 @@ export async function syncPublic(options: SyncOptions): Promise<string[]> {
   await writeFile(path.join(target, CONFIG_FILE), formatJson(mirrorConfig))
 
   // Extras go last, so they can replace the generated .gitignore and config.
-  for (const { source, destination } of options.extra) {
+  for (const { source, destination } of extraFiles) {
     await copyEntry(path.join(root, source), path.join(target, destination))
   }
 
