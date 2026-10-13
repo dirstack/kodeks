@@ -104,17 +104,26 @@ export async function planPublish(
   return decisions
 }
 
-// One release per version, so packages released in lockstep share a single release.
-export function getReleases(published: PublishTarget[]): GitHubRelease[] {
-  const byVersion = new Map<string, string[]>()
+// Packages that share one version get a single `v<version>` release listing all of them.
+// Otherwise each package gets its own `<name>@<version>` release, so two packages that reach
+// the same version at different times never compete for one tag.
+export function getReleases(targets: PublishTarget[]): GitHubRelease[] {
+  const versions = new Set(targets.map(target => target.version))
+  const [sharedVersion] = versions
 
-  for (const { name, version } of published) {
-    byVersion.set(version, [...(byVersion.get(version) ?? []), `${name}@${version}`])
+  if (versions.size === 1 && sharedVersion !== undefined) {
+    return [
+      {
+        tag: `v${sharedVersion}`,
+        notes: targets.map(({ name, version }) => `- ${name}@${version}\n`).join(""),
+        prerelease: sharedVersion.includes("-"),
+      },
+    ]
   }
 
-  return [...byVersion].map(([version, packages]) => ({
-    tag: `v${version}`,
-    notes: `${packages.map(item => `- ${item}`).join("\n")}\n`,
+  return targets.map(({ name, version }) => ({
+    tag: `${name}@${version}`,
+    notes: `- ${name}@${version}\n`,
     prerelease: version.includes("-"),
   }))
 }
@@ -171,7 +180,7 @@ export async function publish(options: PublishOptions): Promise<void> {
   // before anything reaches npm.
   const client = dryRun ? undefined : getGitHubClient(root)
   const decisions = await planPublish(targets, registry)
-  const published: PublishTarget[] = []
+  let published = 0
 
   for (const decision of decisions) {
     const label = `${decision.name}@${decision.version}`
@@ -183,7 +192,7 @@ export async function publish(options: PublishOptions): Promise<void> {
 
     if (dryRun) {
       console.log(`would publish ${label} (dist-tag: ${decision.tag})`)
-      published.push(decision)
+      published++
       continue
     }
 
@@ -196,15 +205,14 @@ export async function publish(options: PublishOptions): Promise<void> {
     })
 
     if (result.status !== 0) throw new Error(`npm publish failed for ${label}.`)
-    published.push(decision)
+    published++
   }
 
-  if (!published.length) {
-    console.log("nothing to publish: every version is already on npm")
-    return
-  }
+  if (!published) console.log("nothing to publish: every version is already on npm")
 
-  for (const release of getReleases(published)) {
+  // Releases cover every current version, not only the ones published in this run, so a
+  // re-run creates a release that failed after its packages reached npm.
+  for (const release of getReleases(decisions)) {
     if (!client) {
       console.log(`would create release ${release.tag} unless it exists`)
       continue
