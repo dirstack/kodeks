@@ -2,6 +2,9 @@
 # repository with `kodeks sync-public`. The monorepo's kodeks.release.json lists the
 # packages and root files. The mirror's own release workflow publishes what lands there.
 #
+# After the sync, the job refreshes the mirror's bun.lock without installing anything, so the
+# mirror's release installs exactly the versions committed with the sync.
+#
 # `mirror-deploy-key` is the private half of a deploy key with write access on the mirror.
 # A push made with a deploy key starts the mirror's workflows, which a push made with the
 # monorepo's GITHUB_TOKEN would not.
@@ -26,6 +29,10 @@ on:
         description: Message of the sync commit. Empty uses "Sync from monorepo@<short sha>".
         type: string
         default: ""
+      lockfile-command:
+        description: Command run in the mirror to refresh its lockfile. Empty skips the step.
+        type: string
+        default: bun install --lockfile-only --ignore-scripts
     secrets:
       mirror-deploy-key:
         description: Private SSH key of a deploy key with write access on the mirror.
@@ -63,6 +70,20 @@ jobs:
         run: |
           version="${KODEKS_VERSION:-$(node -p "const p = require('./package.json'); p.devDependencies?.['@dirstack/kodeks'] ?? p.dependencies?.['@dirstack/kodeks'] ?? 'latest'")}"
           npm exec --yes --package="@dirstack/kodeks@$version" -- kodeks sync-public --target "$GITHUB_WORKSPACE/mirror"
+
+      - name: Setup Bun
+        if: inputs.lockfile-command != ''
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: mirror/package.json
+
+      # Resolves only what changed, keeps every other locked version, and runs no scripts.
+      - name: Refresh the mirror's lockfile
+        if: inputs.lockfile-command != ''
+        working-directory: mirror
+        env:
+          LOCKFILE_COMMAND: ${{ inputs.lockfile-command }}
+        run: bash -c "$LOCKFILE_COMMAND"
 
       - name: Commit and push
         working-directory: mirror

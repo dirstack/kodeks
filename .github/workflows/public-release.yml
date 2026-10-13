@@ -20,9 +20,9 @@ on:
         type: string
         default: "11"
       install-command:
-        description: Command that installs the mirror's dependencies.
+        description: Command that installs the mirror's dependencies from its lockfile.
         type: string
-        default: bun install
+        default: bun install --frozen-lockfile
       build-command:
         description: Command that builds every package's dist directory.
         type: string
