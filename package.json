@@ -1,6 +1,6 @@
 {
   "name": "@dirstack/kodeks",
-  "description": "Shared linter configurations for TypeScript projects.",
+  "description": "Shared linter configurations and release tooling for TypeScript projects.",
   "homepage": "https://github.com/dirstack/kodeks#readme",
   "bugs": {
     "url": "https://github.com/dirstack/kodeks/issues"
@@ -11,8 +11,12 @@
     "type": "git",
     "url": "https://github.com/dirstack/kodeks"
   },
+  "bin": {
+    "kodeks": "./dist/cli/kodeks.js"
+  },
   "files": [
     "configs",
+    "!configs/*.test.ts",
     "dist",
     "skills"
   ],
@@ -40,7 +44,11 @@
     },
     "./commitlint": "./configs/commitlint.json",
     "./semantic-release": "./configs/semantic-release.json",
-    "./semantic-release-dry-run": "./configs/semantic-release-dry-run.json"
+    "./semantic-release-dry-run": "./configs/semantic-release-dry-run.json",
+    "./changesets-changelog": {
+      "types": "./dist/configs/changesets-changelog.d.ts",
+      "default": "./dist/configs/changesets-changelog.js"
+    }
   },
   "publishConfig": {
     "access": "public"
@@ -48,12 +56,18 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "clean": "rm -rf dist",
+    "lint": "oxlint",
+    "format:check": "oxfmt --check .",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
     "prepublishOnly": "bun run build",
     "prepare": "lefthook install"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.2.1",
     "@commitlint/config-conventional": "^21.2.0",
+    "@types/bun": "^1.4.3",
+    "@types/node": "^24.19.2",
     "conventional-changelog-conventionalcommits": "^10.2.1",
     "lefthook": "^2.1.10",
     "oxfmt": "^0.58.0",
