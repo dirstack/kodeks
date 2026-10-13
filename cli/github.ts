@@ -54,6 +54,8 @@ export async function hasGitHubCommit(client: GitHubClient, sha: string): Promis
 }
 
 // Creating the release also creates its tag on `commit` when the tag does not exist yet.
+// `make_latest: "legacy"` lets GitHub pick the latest release by version, so a backport or
+// a recovered older release never takes the latest badge from a newer one.
 export async function createGitHubRelease(
   client: GitHubClient,
   release: GitHubRelease,
@@ -65,6 +67,7 @@ export async function createGitHubRelease(
     name: release.tag,
     body: release.notes,
     prerelease: release.prerelease,
+    make_latest: "legacy",
   })
 
   if (!response.ok) {
