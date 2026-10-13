@@ -12,6 +12,7 @@ import {
   writeFile,
 } from "node:fs/promises"
 import path from "node:path"
+import { runCommand } from "./command.ts"
 import { CONFIG_FILE, DEFAULT_PACKAGES_DIR } from "./config.ts"
 import type { ReleaseConfig } from "./config.ts"
 import type { PackageJson } from "./prepare-package.ts"
@@ -42,6 +43,11 @@ export const DEFAULT_GITIGNORE = ["node_modules", "dist", ".turbo", "*.log", ".D
 function isInside(parent: string, child: string): boolean {
   const relative = path.relative(parent, child)
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative))
+}
+
+function isSubdirectory(value: string): boolean {
+  const normalized = path.normalize(value)
+  return !path.isAbsolute(normalized) && normalized !== "." && isInside(".", normalized)
 }
 
 // Parses `source` or `source:destination`. A bare source keeps its relative path.
@@ -80,6 +86,19 @@ async function walk(root: string, directory: string, exclude: Set<string>): Prom
   return files
 }
 
+// Lists the files git does not ignore, so untracked secrets such as a local .env never
+// reach the public mirror. Returns undefined when the root is not inside a git repository.
+function getGitVisibleFiles(root: string, directories: string[]): Set<string> | undefined {
+  try {
+    const args = ["ls-files", "-z", "--cached", "--others", "--exclude-standard", "--"]
+    const result = runCommand("git", [...args, ...directories], { cwd: root })
+
+    if (result.status !== 0) return
+
+    return new Set(result.stdout.split("\0").filter(Boolean))
+  } catch {}
+}
+
 // Lists every file mirrored from the packages, relative to the monorepo root.
 export async function listSyncFiles(
   root: string,
@@ -99,7 +118,12 @@ export async function listSyncFiles(
     files.push(...(await walk(root, packageDirectory, excluded)))
   }
 
-  return files.sort()
+  const visibleFiles = getGitVisibleFiles(
+    root,
+    packages.map(packageName => path.join(packagesDir, packageName)),
+  )
+
+  return files.filter(file => !visibleFiles || visibleFiles.has(file)).sort()
 }
 
 // Copies a file, symlink or directory. Directories merge into an existing destination.
@@ -139,6 +163,11 @@ export async function syncPublic(options: SyncOptions): Promise<string[]> {
   if (!targetStats?.isDirectory()) throw new Error(`Target ${target} is not a directory.`)
   if (isInside(target, root)) throw new Error("The target must not contain the monorepo.")
   if (!packages.length) throw new Error("No packages to sync. Pass --packages.")
+
+  // The package tree is deleted and rewritten, so it must be a real subdirectory of the target.
+  for (const subpath of [packagesDir, ...packages]) {
+    if (!isSubdirectory(subpath)) throw new Error(`"${subpath}" must be a subdirectory path.`)
+  }
 
   const files = await listSyncFiles(root, packagesDir, packages, [
     ...DEFAULT_EXCLUDES,

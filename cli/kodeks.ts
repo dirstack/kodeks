@@ -94,8 +94,8 @@ Options:
     usage: `Usage: kodeks sync-public --target <dir> [--packages <list>] [--license-from <path>] [--extra <path>...]
 
 Mirrors packages from this monorepo into a checkout of the public repository. The target's
-<packagesDir> is replaced, dist, node_modules and .turbo are skipped, and a .gitignore plus
-a ${CONFIG_FILE} listing the packages to publish are written to the target root.
+<packagesDir> is replaced. Files git ignores, and dist, node_modules and .turbo, are skipped.
+A .gitignore and a ${CONFIG_FILE} listing the packages to publish are written to the target root.
 
 Options:
   --target <dir>         Checkout of the public mirror (required)
