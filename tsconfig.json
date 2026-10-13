@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.build.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["bun"]
+  },
+  "include": ["configs/*.ts", "cli/*.ts", "*.config.ts"],
+  "exclude": []
+}
