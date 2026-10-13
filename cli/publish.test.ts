@@ -9,10 +9,17 @@ import {
   planPublish,
 } from "./publish.ts"
 
-function createRegistry(published: string[], gitHeads: Record<string, string> = {}): Registry {
+function createRegistry(
+  published: string[],
+  gitHeads: Record<string, string> = {},
+  latestVersions: Record<string, string> = {},
+): Registry {
   return {
     async isPublished(name, version) {
       return published.includes(`${name}@${version}`)
+    },
+    async getLatestVersion(name) {
+      return latestVersions[name]
     },
     async getGitHead(name, version) {
       return gitHeads[`${name}@${version}`]
@@ -63,6 +70,18 @@ describe("getDistTag", () => {
   it("should publish a numeric prerelease under next", () => {
     expect(getDistTag("1.2.3-0")).toBe("next")
   })
+
+  it("should publish a newer stable version under latest", () => {
+    expect(getDistTag("2.1.0", "2.0.4")).toBe("latest")
+  })
+
+  it("should publish a backport below the current latest under latest-<major>", () => {
+    expect(getDistTag("1.0.1", "2.0.0")).toBe("latest-1")
+  })
+
+  it("should ignore the current latest for a prerelease", () => {
+    expect(getDistTag("1.5.0-beta.0", "2.0.0")).toBe("beta")
+  })
 })
 
 describe("isVersionAtLeast", () => {
@@ -107,6 +126,16 @@ describe("planPublish", () => {
     const decisions = await planPublish(targets, registry)
 
     expect(decisions.every(decision => decision.skip)).toBe(true)
+  })
+
+  it("should keep latest in place when publishing a backport", async () => {
+    const registry = createRegistry([], {}, { "@acme/sdk": "2.0.0" })
+    const decisions = await planPublish(
+      [{ directory: "packages/sdk/dist", name: "@acme/sdk", version: "1.4.1" }],
+      registry,
+    )
+
+    expect(decisions[0]?.tag).toBe("latest-1")
   })
 
   it("should check the exact version, not just the package name", async () => {

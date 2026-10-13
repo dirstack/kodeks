@@ -29,6 +29,7 @@ export interface PlannedRelease<T extends PublishTarget = PublishTarget> extends
 
 export interface Registry {
   isPublished(name: string, version: string): Promise<boolean>
+  getLatestVersion(name: string): Promise<string | undefined>
   getGitHead(name: string, version: string): Promise<string | undefined>
 }
 
@@ -50,19 +51,6 @@ interface PublishOptions {
 // Trusted publishing (OIDC) needs this npm version or newer.
 const MINIMUM_NPM_VERSION = "11.5.1"
 
-// `1.2.3` publishes under `latest`, `1.2.3-beta.0` under `beta`. A purely numeric
-// prerelease such as `1.2.3-0` would be an invalid dist-tag, so it goes to `next`.
-export function getDistTag(version: string): string {
-  const [release = ""] = version.split("+")
-  const dashIndex = release.indexOf("-")
-
-  if (dashIndex === -1) return "latest"
-
-  const [identifier = ""] = release.slice(dashIndex + 1).split(".")
-
-  return /^\d*$/.test(identifier) ? "next" : identifier
-}
-
 function parseVersionNumbers(version: string): number[] {
   const [release = ""] = version.split("-")
   return release.split(".").map(Number)
@@ -78,6 +66,26 @@ export function isVersionAtLeast(version: string, minimum: string): boolean {
   }
 
   return true
+}
+
+// `1.2.3` publishes under `latest`, `1.2.3-beta.0` under `beta`. A purely numeric
+// prerelease such as `1.2.3-0` would be an invalid dist-tag, so it goes to `next`. A stable
+// version below the current `latest`, such as a 1.x backport after 2.0.0, goes to
+// `latest-1`, so `latest` never moves backwards.
+export function getDistTag(version: string, latestVersion?: string): string {
+  const [release = ""] = version.split("+")
+  const dashIndex = release.indexOf("-")
+
+  if (dashIndex === -1) {
+    if (!latestVersion || isVersionAtLeast(release, latestVersion)) return "latest"
+
+    const [major] = parseVersionNumbers(release)
+    return `latest-${major}`
+  }
+
+  const [identifier = ""] = release.slice(dashIndex + 1).split(".")
+
+  return /^\d*$/.test(identifier) ? "next" : identifier
 }
 
 async function readPublishTargets(
@@ -116,7 +124,9 @@ export async function planPublish(
 
   for (const target of targets) {
     const skip = await registry.isPublished(target.name, target.version)
-    decisions.push({ ...target, tag: getDistTag(target.version), skip })
+    const latestVersion = skip ? undefined : await registry.getLatestVersion(target.name)
+
+    decisions.push({ ...target, tag: getDistTag(target.version, latestVersion), skip })
   }
 
   return decisions
@@ -195,6 +205,15 @@ const npmRegistry: Registry = {
     throw new Error(`npm view ${name}@${version} failed:\n${result.stderr.trim()}`)
   },
 
+  async getLatestVersion(name) {
+    const result = runCommand("npm", ["view", name, "dist-tags.latest"])
+
+    if (result.status === 0) return result.stdout.trim() || undefined
+    if (/\bE404\b/.test(result.stderr)) return
+
+    throw new Error(`npm view ${name} failed:\n${result.stderr.trim()}`)
+  },
+
   async getGitHead(name, version) {
     const result = runCommand("npm", ["view", `${name}@${version}`, "gitHead"])
 
@@ -265,8 +284,10 @@ export async function publish(options: PublishOptions): Promise<void> {
 
     console.log(`publishing ${label} (dist-tag: ${decision.tag})`)
 
-    // Auth and provenance come from trusted publishing, so no token or --provenance flag.
-    const result = runCommand("npm", ["publish", "--access", "public", "--tag", decision.tag], {
+    // Auth comes from trusted publishing, so there is no token. --provenance makes a publish
+    // that cannot attest provenance fail instead of quietly succeeding without it.
+    const args = ["publish", "--access", "public", "--tag", decision.tag, "--provenance"]
+    const result = runCommand("npm", args, {
       cwd: decision.directory,
       inherit: true,
     })
