@@ -42,6 +42,17 @@ export async function hasGitHubRelease(client: GitHubClient, tag: string): Promi
   )
 }
 
+export async function hasGitHubCommit(client: GitHubClient, sha: string): Promise<boolean> {
+  const response = await requestGitHub(client, "GET", `/commits/${encodeURIComponent(sha)}`)
+
+  if (response.status === 404 || response.status === 422) return false
+  if (response.ok) return true
+
+  throw new Error(
+    `GitHub API returned ${response.status} for commit ${sha}: ${await response.text()}`,
+  )
+}
+
 // Creating the release also creates its tag on `commit` when the tag does not exist yet.
 export async function createGitHubRelease(
   client: GitHubClient,

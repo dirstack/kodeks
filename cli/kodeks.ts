@@ -50,9 +50,11 @@ are copied from <dir> into dist. <dir> defaults to the current directory.
 
 Publishes each package from its built <packagesDir>/<package>/dist, in the listed order.
 Versions already on npm are skipped. A prerelease such as 1.2.3-beta.0 publishes under
-the "beta" dist-tag, a plain version under "latest". Any missing GitHub Release for the
-current versions is created: one "v<version>" release when every package shares a version,
-otherwise one "<name>@<version>" release per package.
+the "beta" dist-tag, a plain version under "latest". A missing GitHub Release is created for
+each version published in this run, and for each earlier version whose npm gitHead is a
+commit of this repository. "releaseTag" in ${CONFIG_FILE} picks the tags: "version" for one
+"v<version>" release (packages in lockstep), "package" for one "<name>@<version>" release per
+package. It defaults to "version" for one package and "package" for several.
 
 Runs under npm trusted publishing (OIDC), so no NPM_TOKEN is needed. Requires npm 11.5.1
 or newer, and GITHUB_TOKEN to create releases.
@@ -86,6 +88,7 @@ Options:
         root,
         packagesDir: config.packagesDir ?? DEFAULT_PACKAGES_DIR,
         packages,
+        releaseTag: config.releaseTag,
         dryRun: values["dry-run"] ?? false,
       })
     },
@@ -132,6 +135,7 @@ Options:
         packagesDir,
         packages: parseList(values.packages) ?? sync.packages ?? config.packages ?? [],
         publishPackages: config.packages,
+        releaseTag: config.releaseTag,
         licenseFrom: values["license-from"] ?? sync.licenseFrom,
         extra: [...(sync.extra ?? []), ...(values.extra ?? [])].map(parseExtra),
         exclude: sync.exclude ?? [],

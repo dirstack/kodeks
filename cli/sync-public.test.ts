@@ -111,13 +111,14 @@ describe("syncPublic", () => {
       packagesDir: "packages",
       packages: ["sdk", "tsconfig"],
       licenseFrom: "packages/sdk/LICENSE",
+      releaseTag: "version",
       extra: [parseExtra("mirror:.")],
       exclude: [],
     })
 
     const config = JSON.parse(await readFile(path.join(target, "kodeks.release.json"), "utf8"))
 
-    expect(config).toEqual({ packages: ["sdk"] })
+    expect(config).toEqual({ packages: ["sdk"], releaseTag: "version" })
     expect(await readFile(path.join(target, "LICENSE"), "utf8")).toBe("MIT\n")
     expect(await readFile(path.join(target, "README.md"), "utf8")).toBe("# Acme\n")
     expect(await listSyncFiles(target, "packages", ["sdk", "tsconfig"])).toHaveLength(6)

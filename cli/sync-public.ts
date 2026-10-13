@@ -13,7 +13,7 @@ import {
 import path from "node:path"
 import { runCommand } from "./command.ts"
 import { CONFIG_FILE, DEFAULT_PACKAGES_DIR } from "./config.ts"
-import type { ReleaseConfig } from "./config.ts"
+import type { ReleaseConfig, ReleaseTag } from "./config.ts"
 import { formatJson, readJson } from "./json.ts"
 import type { PackageJson } from "./prepare-package.ts"
 
@@ -28,6 +28,7 @@ interface SyncOptions {
   packagesDir: string
   packages: string[] // Package directories to mirror.
   publishPackages?: string[] // Package directories the mirror publishes. Defaults to the public ones.
+  releaseTag?: ReleaseTag
   licenseFrom?: string
   extra: ExtraFile[]
   exclude: string[]
@@ -194,6 +195,7 @@ export async function syncPublic(options: SyncOptions): Promise<string[]> {
   const mirrorConfig: ReleaseConfig = {
     ...(packagesDir === DEFAULT_PACKAGES_DIR ? {} : { packagesDir }),
     packages: publishPackages,
+    ...(options.releaseTag ? { releaseTag: options.releaseTag } : {}),
   }
 
   await writeFile(path.join(target, ".gitignore"), DEFAULT_GITIGNORE, "utf8")
