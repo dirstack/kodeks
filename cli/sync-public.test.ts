@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test"
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
+import { runCommand } from "./command.ts"
 import { listSyncFiles, parseExtra, syncPublic } from "./sync-public.ts"
 
 async function writeTree(root: string, files: Record<string, string>) {
@@ -53,6 +54,20 @@ describe("listSyncFiles", () => {
 
     expect(files).toContain("packages/sdk/.turbo/turbo-build.log")
     expect(files).not.toContain("packages/sdk/LICENSE")
+  })
+
+  it("should skip files git ignores when the monorepo is a git repository", async () => {
+    const root = await createMonorepo()
+    await writeTree(root, {
+      ".gitignore": ".env\n",
+      "packages/sdk/.env": "API_SECRET=do-not-publish\n",
+    })
+    runCommand("git", ["init", "--quiet"], { cwd: root })
+
+    const files = await listSyncFiles(root, "packages", ["sdk"])
+
+    expect(files).not.toContain("packages/sdk/.env")
+    expect(files).toContain("packages/sdk/src/index.ts")
   })
 
   it("should throw when a package directory is missing", async () => {
@@ -107,6 +122,36 @@ describe("syncPublic", () => {
     expect(await readFile(path.join(target, "README.md"), "utf8")).toBe("# Acme\n")
     expect(await listSyncFiles(target, "packages", ["sdk", "tsconfig"])).toHaveLength(6)
     await expect(listSyncFiles(target, "packages", ["removed"])).rejects.toThrow("not found")
+  })
+
+  it.each([".", "..", "packages/.."])(
+    "should refuse the packages directory %p, which would delete the target",
+    async packagesDir => {
+      const root = await createMonorepo()
+      const target = await mkdtemp(path.join(tmpdir(), "kodeks-mirror-"))
+      await writeTree(target, { "README.md": "# Mirror\n" })
+
+      await expect(
+        syncPublic({ root, target, packagesDir, packages: ["sdk"], extra: [], exclude: [] }),
+      ).rejects.toThrow("must be a subdirectory path")
+      expect(await readFile(path.join(target, "README.md"), "utf8")).toBe("# Mirror\n")
+    },
+  )
+
+  it("should refuse a package name that leaves the packages directory", async () => {
+    const root = await createMonorepo()
+    const target = await mkdtemp(path.join(tmpdir(), "kodeks-mirror-"))
+
+    await expect(
+      syncPublic({
+        root,
+        target,
+        packagesDir: "packages",
+        packages: ["../apps"],
+        extra: [],
+        exclude: [],
+      }),
+    ).rejects.toThrow("must be a subdirectory path")
   })
 
   it("should refuse a target that contains the monorepo", async () => {

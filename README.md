@@ -197,7 +197,7 @@ Keep the mirror's root files in the monorepo and list them in `sync.extra`. In t
 }
 ```
 
-On every sync, `kodeks sync-public` replaces the mirror's `packages` directory, writes a `.gitignore`, and writes a `kodeks.release.json` that only lists the packages to publish. Extras are copied last, so an extra can replace either generated file. Root files that were removed from the monorepo stay in the mirror until you delete them there.
+On every sync, `kodeks sync-public` replaces the mirror's `packages` directory with the package files git does not ignore, so a local `.env` never reaches the mirror. It also writes a `.gitignore` and a `kodeks.release.json` that only lists the packages to publish. Extras are copied last, so an extra can replace either generated file. Root files that were removed from the monorepo stay in the mirror until you delete them there.
 
 ### Changesets
 
