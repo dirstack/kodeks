@@ -1,0 +1,65 @@
+# Reusable workflow for a private monorepo that publishes its public packages from a mirror.
+# It only versions: when changesets are pending it opens or updates the "Version Packages"
+# pull request. Merging that pull request bumps the versions on the default branch, the sync
+# workflow mirrors them, and the mirror publishes them.
+#
+# The calling job must grant `contents: write` and `pull-requests: write`.
+name: Version public packages
+
+on:
+  workflow_call:
+    inputs:
+      bun-version:
+        description: Bun version. Empty reads `packageManager` from package.json.
+        type: string
+        default: ""
+      install-command:
+        description: Command that installs the monorepo's dependencies.
+        type: string
+        default: bun install --frozen-lockfile
+      version-command:
+        description: Command that applies the pending changesets.
+        type: string
+        default: bunx changeset version
+      title:
+        description: Title of the version pull request and its commit.
+        type: string
+        default: "chore: version packages"
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ inputs.bun-version }}
+
+      # The registry occasionally fails mid-download, so the install gets three attempts.
+      - name: Install dependencies
+        env:
+          INSTALL_COMMAND: ${{ inputs.install-command }}
+        run: |
+          for attempt in 1 2 3; do
+            bash -c "$INSTALL_COMMAND" && exit 0
+            echo "Install failed (attempt $attempt), retrying in 5s..."
+            sleep 5
+          done
+          exit 1
+
+      - name: Open or update the version pull request
+        uses: changesets/action@v1
+        with:
+          version: ${{ inputs.version-command }}
+          commit: ${{ inputs.title }}
+          title: ${{ inputs.title }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}

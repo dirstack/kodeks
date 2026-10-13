@@ -1,0 +1,70 @@
+# Reusable workflow that runs in a public mirror: it builds the packages and runs
+# `kodeks publish`, which publishes every version not yet on npm and cuts one GitHub
+# Release per new version.
+#
+# Auth is npm trusted publishing (OIDC), so there is no NPM_TOKEN. npm validates the
+# calling workflow, not this one: on npmjs.com, set each package's trusted publisher to the
+# mirror repository and the caller's filename (for example `release.yml`). The calling job
+# must grant `contents: write` and `id-token: write`.
+name: Release public packages
+
+on:
+  workflow_call:
+    inputs:
+      bun-version:
+        description: Bun version. Empty reads `packageManager` from package.json.
+        type: string
+        default: ""
+      npm-version:
+        description: npm version to install. Trusted publishing needs 11.5.1 or newer.
+        type: string
+        default: "11"
+      install-command:
+        description: Command that installs the mirror's dependencies.
+        type: string
+        default: bun install
+      build-command:
+        description: Command that builds every package's dist directory.
+        type: string
+        default: bun run build
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ inputs.bun-version }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      # The npm bundled with Node is older than trusted publishing requires.
+      - name: Update npm
+        run: npm install --global "npm@$NPM_VERSION"
+        env:
+          NPM_VERSION: ${{ inputs.npm-version }}
+
+      - name: Install dependencies
+        run: bash -c "$INSTALL_COMMAND"
+        env:
+          INSTALL_COMMAND: ${{ inputs.install-command }}
+
+      - name: Build
+        run: bash -c "$BUILD_COMMAND"
+        env:
+          BUILD_COMMAND: ${{ inputs.build-command }}
+
+      - name: Publish and release
+        run: bunx kodeks publish
+        env:
+          GITHUB_TOKEN: ${{ github.token }}

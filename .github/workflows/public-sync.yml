@@ -1,0 +1,83 @@
+# Reusable workflow that mirrors a private monorepo's public packages into a public
+# repository with `kodeks sync-public`. The monorepo's kodeks.release.json lists the
+# packages and root files. The mirror's own release workflow publishes what lands there.
+#
+# `mirror-deploy-key` is the private half of a deploy key with write access on the mirror.
+# A push made with a deploy key starts the mirror's workflows, which a push made with the
+# monorepo's GITHUB_TOKEN would not.
+name: Sync public mirror
+
+on:
+  workflow_call:
+    inputs:
+      mirror-repository:
+        description: The public mirror, as `owner/name`.
+        type: string
+        required: true
+      mirror-branch:
+        description: Branch of the mirror that receives the sync commit.
+        type: string
+        default: main
+      kodeks-version:
+        description: Version of @dirstack/kodeks to run. Empty reads the range from package.json.
+        type: string
+        default: ""
+      commit-message:
+        description: Message of the sync commit. Empty uses "Sync from monorepo@<short sha>".
+        type: string
+        default: ""
+    secrets:
+      mirror-deploy-key:
+        description: Private SSH key of a deploy key with write access on the mirror.
+        required: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout monorepo
+        uses: actions/checkout@v6
+        with:
+          path: monorepo
+
+      - name: Checkout mirror
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ inputs.mirror-repository }}
+          ref: ${{ inputs.mirror-branch }}
+          ssh-key: ${{ secrets.mirror-deploy-key }}
+          path: mirror
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      # Runs kodeks without installing the monorepo's dependencies.
+      - name: Sync packages into the mirror
+        working-directory: monorepo
+        env:
+          KODEKS_VERSION: ${{ inputs.kodeks-version }}
+        run: |
+          version="${KODEKS_VERSION:-$(node -p "const p = require('./package.json'); p.devDependencies?.['@dirstack/kodeks'] ?? p.dependencies?.['@dirstack/kodeks'] ?? 'latest'")}"
+          npm exec --yes --package="@dirstack/kodeks@$version" -- kodeks sync-public --target "$GITHUB_WORKSPACE/mirror"
+
+      - name: Commit and push
+        working-directory: mirror
+        env:
+          COMMIT_MESSAGE: ${{ inputs.commit-message }}
+          MIRROR_BRANCH: ${{ inputs.mirror-branch }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "No changes to sync."
+            exit 0
+          fi
+
+          git commit -m "${COMMIT_MESSAGE:-Sync from monorepo@${GITHUB_SHA:0:7}}"
+          git push origin "HEAD:$MIRROR_BRANCH"
