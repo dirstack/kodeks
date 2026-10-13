@@ -243,7 +243,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-    uses: dirstack/kodeks/.github/workflows/public-version.yml@v1.9.0
+    uses: dirstack/kodeks/.github/workflows/public-version.yml@<release commit SHA> # v<version>
 ```
 
 ```yaml
@@ -270,7 +270,7 @@ jobs:
   sync:
     permissions:
       contents: read
-    uses: dirstack/kodeks/.github/workflows/public-sync.yml@v1.9.0
+    uses: dirstack/kodeks/.github/workflows/public-sync.yml@<release commit SHA> # v<version>
     with:
       mirror-repository: acme/acme-js
     secrets:
@@ -301,10 +301,12 @@ jobs:
     permissions:
       contents: write
       id-token: write
-    uses: dirstack/kodeks/.github/workflows/public-release.yml@v1.9.0
+    uses: dirstack/kodeks/.github/workflows/public-release.yml@<release commit SHA> # v<version>
 ```
 
 The release workflow installs npm 11 (input `npm-version`), runs `install-command` (default `bun install --frozen-lockfile`) and `build-command` (default `bun run build`), then runs `kodeks publish`. Commit this file to the mirror once, by hand.
+
+Pin each `uses:` to the commit SHA of a kodeks release, with the version in a comment, never to the tag: the sync receives the mirror's deploy key and the release holds `id-token: write`, so a moved tag could push to the mirror or publish to npm. Every action inside these workflows is pinned to a commit SHA as well, so the monorepo and the mirror can turn on *Require actions to be pinned to a full-length commit SHA* (Settings, Actions, General).
 
 ### Trusted publishing on npmjs.com
 
