@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises"
 import path from "node:path"
 
-export interface SyncConfig {
+interface SyncConfig {
   packages?: string[] // Package directories to mirror. Defaults to the published packages.
   licenseFrom?: string // File copied to the mirror's root LICENSE.
   extra?: string[] // Extra files or directories, as `source` or `source:destination`.

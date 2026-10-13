@@ -1,11 +1,12 @@
 import { mkdir, writeFile } from "node:fs/promises"
 import path from "node:path"
+import { formatJson } from "./json.ts"
 
 // Changesets config has no `extends`, so this template is written into each repository.
 // `privatePackages` keeps every private workspace package out of versioning without a
 // hand-kept `ignore` list, and the changelog writes entries without links or commit hashes,
 // which would point at the private monorepo.
-export const CHANGESETS_CONFIG = {
+const CHANGESETS_CONFIG = {
   $schema: "https://unpkg.com/@changesets/config@3.1.1/schema.json",
   changelog: "@dirstack/kodeks/changesets-changelog",
   commit: false,
@@ -24,9 +25,7 @@ export async function initChangesets(root: string, force: boolean): Promise<stri
   await mkdir(path.dirname(configPath), { recursive: true })
 
   try {
-    await writeFile(configPath, `${JSON.stringify(CHANGESETS_CONFIG, null, 2)}\n`, {
-      flag: force ? "w" : "wx",
-    })
+    await writeFile(configPath, formatJson(CHANGESETS_CONFIG), { flag: force ? "w" : "wx" })
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error
     throw new Error(

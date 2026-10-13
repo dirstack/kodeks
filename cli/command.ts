@@ -1,12 +1,12 @@
 import { spawnSync } from "node:child_process"
 
-export interface CommandResult {
+interface CommandResult {
   status: number
   stdout: string
   stderr: string
 }
 
-export interface CommandOptions {
+interface CommandOptions {
   cwd?: string
   inherit?: boolean // Stream output to the terminal instead of capturing it.
 }

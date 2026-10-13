@@ -1,9 +1,9 @@
-import { readFile } from "node:fs/promises"
 import path from "node:path"
 import { runCommand } from "./command.ts"
 import { GITHUB_REPOSITORY, GITHUB_SHA, GITHUB_TOKEN } from "./env.ts"
 import type { GitHubClient, GitHubRelease } from "./github.ts"
 import { createGitHubRelease, hasGitHubRelease, parseGitHubRepository } from "./github.ts"
+import { readJson } from "./json.ts"
 import type { PackageJson } from "./prepare-package.ts"
 
 export interface PublishTarget {
@@ -12,7 +12,7 @@ export interface PublishTarget {
   version: string
 }
 
-export interface PublishDecision extends PublishTarget {
+interface PublishDecision extends PublishTarget {
   tag: string // The npm dist-tag.
   skip: boolean // True when this exact version is already on npm.
 }
@@ -21,7 +21,7 @@ export interface Registry {
   isPublished(name: string, version: string): Promise<boolean>
 }
 
-export interface PublishOptions {
+interface PublishOptions {
   root: string
   packagesDir: string
   packages: string[]
@@ -30,7 +30,7 @@ export interface PublishOptions {
 }
 
 // Trusted publishing (OIDC) needs this npm version or newer.
-export const MINIMUM_NPM_VERSION = "11.5.1"
+const MINIMUM_NPM_VERSION = "11.5.1"
 
 // `1.2.3` publishes under `latest`, `1.2.3-beta.0` under `beta`. A purely numeric
 // prerelease such as `1.2.3-0` would be an invalid dist-tag, so it goes to `next`.
@@ -62,7 +62,7 @@ export function isVersionAtLeast(version: string, minimum: string): boolean {
   return true
 }
 
-export async function readPublishTargets(
+async function readPublishTargets(
   root: string,
   packagesDir: string,
   packages: string[],
@@ -75,7 +75,7 @@ export async function readPublishTargets(
     let manifest: PackageJson
 
     try {
-      manifest = JSON.parse(await readFile(manifestPath, "utf8")) as PackageJson
+      manifest = await readJson<PackageJson>(manifestPath)
     } catch {
       throw new Error(`${path.relative(root, manifestPath)} not found. Build the package first.`)
     }
@@ -119,7 +119,7 @@ export function getReleases(published: PublishTarget[]): GitHubRelease[] {
   }))
 }
 
-export const npmRegistry: Registry = {
+const npmRegistry: Registry = {
   async isPublished(name, version) {
     const result = runCommand("npm", ["view", `${name}@${version}`, "version"])
 
