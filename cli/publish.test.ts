@@ -1,13 +1,37 @@
 import { describe, expect, it } from "bun:test"
-import type { PublishTarget, Registry } from "./publish.ts"
-import { getDistTag, getReleases, isVersionAtLeast, planPublish } from "./publish.ts"
+import type { PublishDecision, PublishTarget, Registry, ReleaseSources } from "./publish.ts"
+import {
+  findReleaseCommit,
+  getDefaultReleaseTag,
+  getDistTag,
+  getReleases,
+  isVersionAtLeast,
+  planPublish,
+} from "./publish.ts"
 
-function createRegistry(published: string[]): Registry {
+function createRegistry(published: string[], gitHeads: Record<string, string> = {}): Registry {
   return {
     async isPublished(name, version) {
       return published.includes(`${name}@${version}`)
     },
+    async getGitHead(name, version) {
+      return gitHeads[`${name}@${version}`]
+    },
   }
+}
+
+function createSources(registry: Registry, commits: string[]): ReleaseSources {
+  return {
+    headCommit: "head000",
+    registry,
+    async hasCommit(sha) {
+      return commits.includes(sha)
+    },
+  }
+}
+
+function createDecision(name: string, version: string, skip: boolean): PublishDecision {
+  return { directory: `packages/${name}/dist`, name, version, tag: "latest", skip }
 }
 
 const targets: PublishTarget[] = [
@@ -92,54 +116,117 @@ describe("planPublish", () => {
   })
 })
 
+describe("getDefaultReleaseTag", () => {
+  it("should use version tags for a single package", () => {
+    expect(getDefaultReleaseTag(["cli"])).toBe("version")
+  })
+
+  it("should use package tags for several packages", () => {
+    expect(getDefaultReleaseTag(["embeds", "sdk"])).toBe("package")
+  })
+})
+
 describe("getReleases", () => {
-  it("should cut one version release for packages sharing a version", () => {
-    expect(getReleases(targets)).toEqual([
-      {
-        tag: "v1.2.0",
-        notes: "- @acme/embeds@1.2.0\n- @acme/sdk@1.2.0\n",
-        prerelease: false,
-      },
+  it("should cut one version release for packages released in lockstep", () => {
+    const releases = getReleases(targets, "version")
+
+    expect(releases.map(({ tag, notes, prerelease }) => ({ tag, notes, prerelease }))).toEqual([
+      { tag: "v1.2.0", notes: "- @acme/embeds@1.2.0\n- @acme/sdk@1.2.0\n", prerelease: false },
     ])
   })
 
-  it("should mark a shared prerelease version as a prerelease", () => {
-    const releases = getReleases([
-      { directory: "packages/sdk/dist", name: "@acme/sdk", version: "2.0.0-beta.1" },
-    ])
+  it("should mark a prerelease version as a prerelease", () => {
+    const [release] = getReleases(
+      [{ directory: "packages/sdk/dist", name: "@acme/sdk", version: "2.0.0-beta.1" }],
+      "version",
+    )
 
-    expect(releases).toEqual([
-      { tag: "v2.0.0-beta.1", notes: "- @acme/sdk@2.0.0-beta.1\n", prerelease: true },
-    ])
+    expect(release?.prerelease).toBe(true)
   })
 
-  it("should cut one package release each when versions differ", () => {
-    const releases = getReleases([
-      { directory: "packages/sdk/dist", name: "@acme/sdk", version: "1.2.0" },
-      { directory: "packages/cli/dist", name: "@acme/cli", version: "0.3.0-beta.1" },
-    ])
-
-    expect(releases.map(release => [release.tag, release.prerelease])).toEqual([
-      ["@acme/sdk@1.2.0", false],
-      ["@acme/cli@0.3.0-beta.1", true],
-    ])
+  it("should throw when version tags meet packages at different versions", () => {
+    expect(() =>
+      getReleases(
+        [
+          { directory: "packages/sdk/dist", name: "@acme/sdk", version: "1.2.0" },
+          { directory: "packages/cli/dist", name: "@acme/cli", version: "1.1.0" },
+        ],
+        "version",
+      ),
+    ).toThrow('releaseTag "version" needs every package at one version, found 1.2.0, 1.1.0.')
   })
 
-  it("should give two packages reaching the same version at different times their own tags", () => {
-    const first = getReleases([
-      { directory: "packages/sdk/dist", name: "@acme/sdk", version: "1.0.1" },
-      { directory: "packages/cli/dist", name: "@acme/cli", version: "1.0.0" },
-    ])
-    const second = getReleases([
-      { directory: "packages/sdk/dist", name: "@acme/sdk", version: "1.0.2" },
-      { directory: "packages/cli/dist", name: "@acme/cli", version: "1.0.1" },
-    ])
+  it("should cut one package release each with package tags", () => {
+    const releases = getReleases(targets, "package")
 
-    expect(first.map(release => release.tag)).toContain("@acme/sdk@1.0.1")
-    expect(second.map(release => release.tag)).toContain("@acme/cli@1.0.1")
+    expect(releases.map(release => release.tag)).toEqual(["@acme/embeds@1.2.0", "@acme/sdk@1.2.0"])
+  })
+
+  it("should keep a version's package tag when the other packages move on", () => {
+    const first = getReleases(
+      [
+        { directory: "packages/a/dist", name: "a", version: "1.0.1" },
+        { directory: "packages/b/dist", name: "b", version: "1.0.1" },
+      ],
+      "package",
+    )
+    const second = getReleases(
+      [
+        { directory: "packages/a/dist", name: "a", version: "1.0.1" },
+        { directory: "packages/b/dist", name: "b", version: "1.0.2" },
+      ],
+      "package",
+    )
+
+    expect(first[0]?.tag).toBe("a@1.0.1")
+    expect(second[0]?.tag).toBe("a@1.0.1")
   })
 
   it("should return no release when there are no packages", () => {
-    expect(getReleases([])).toEqual([])
+    expect(getReleases([], "version")).toEqual([])
+  })
+})
+
+describe("findReleaseCommit", () => {
+  it("should point a release published in this run at HEAD", async () => {
+    const [release] = getReleases([createDecision("@acme/sdk", "1.2.0", false)], "version")
+    const commit = await findReleaseCommit(release!, createSources(createRegistry([]), []))
+
+    expect(commit).toBe("head000")
+  })
+
+  it("should recover a release at the gitHead npm recorded from this repository", async () => {
+    const registry = createRegistry([], { "@acme/sdk@1.2.0": "abc1234" })
+    const [release] = getReleases([createDecision("@acme/sdk", "1.2.0", true)], "version")
+
+    expect(await findReleaseCommit(release!, createSources(registry, ["abc1234"]))).toBe("abc1234")
+  })
+
+  it("should skip a version published without a gitHead", async () => {
+    const [release] = getReleases([createDecision("@acme/sdk", "0.0.2", true)], "version")
+    const commit = await findReleaseCommit(release!, createSources(createRegistry([]), []))
+
+    expect(commit).toBeUndefined()
+  })
+
+  it("should skip a version whose gitHead is not a commit of this repository", async () => {
+    const registry = createRegistry([], { "@acme/sdk@1.2.0": "fff9999" })
+    const [release] = getReleases([createDecision("@acme/sdk", "1.2.0", true)], "version")
+
+    expect(await findReleaseCommit(release!, createSources(registry, ["abc1234"]))).toBeUndefined()
+  })
+
+  it("should skip a lockstep release whose packages came from different commits", async () => {
+    const registry = createRegistry([], {
+      "@acme/embeds@1.2.0": "abc1234",
+      "@acme/sdk@1.2.0": "def5678",
+    })
+    const [release] = getReleases(
+      [createDecision("@acme/embeds", "1.2.0", true), createDecision("@acme/sdk", "1.2.0", true)],
+      "version",
+    )
+    const sources = createSources(registry, ["abc1234", "def5678"])
+
+    expect(await findReleaseCommit(release!, sources)).toBeUndefined()
   })
 })

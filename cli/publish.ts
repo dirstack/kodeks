@@ -1,8 +1,14 @@
 import path from "node:path"
 import { runCommand } from "./command.ts"
+import type { ReleaseTag } from "./config.ts"
 import { GITHUB_REPOSITORY, GITHUB_SHA, GITHUB_TOKEN } from "./env.ts"
 import type { GitHubClient, GitHubRelease } from "./github.ts"
-import { createGitHubRelease, hasGitHubRelease, parseGitHubRepository } from "./github.ts"
+import {
+  createGitHubRelease,
+  hasGitHubCommit,
+  hasGitHubRelease,
+  parseGitHubRepository,
+} from "./github.ts"
 import { readJson } from "./json.ts"
 import type { PackageJson } from "./prepare-package.ts"
 
@@ -12,19 +18,31 @@ export interface PublishTarget {
   version: string
 }
 
-interface PublishDecision extends PublishTarget {
+export interface PublishDecision extends PublishTarget {
   tag: string // The npm dist-tag.
   skip: boolean // True when this exact version is already on npm.
 }
 
+export interface PlannedRelease<T extends PublishTarget = PublishTarget> extends GitHubRelease {
+  targets: T[]
+}
+
 export interface Registry {
   isPublished(name: string, version: string): Promise<boolean>
+  getGitHead(name: string, version: string): Promise<string | undefined>
+}
+
+export interface ReleaseSources {
+  headCommit: string
+  registry: Registry
+  hasCommit(sha: string): Promise<boolean>
 }
 
 interface PublishOptions {
   root: string
   packagesDir: string
   packages: string[]
+  releaseTag?: ReleaseTag
   dryRun: boolean
   registry?: Registry
 }
@@ -104,28 +122,67 @@ export async function planPublish(
   return decisions
 }
 
-// Packages that share one version get a single `v<version>` release listing all of them.
-// Otherwise each package gets its own `<name>@<version>` release, so two packages that reach
-// the same version at different times never compete for one tag.
-export function getReleases(targets: PublishTarget[]): GitHubRelease[] {
-  const versions = new Set(targets.map(target => target.version))
-  const [sharedVersion] = versions
+export function getDefaultReleaseTag(packages: string[]): ReleaseTag {
+  return packages.length === 1 ? "version" : "package"
+}
 
-  if (versions.size === 1 && sharedVersion !== undefined) {
-    return [
-      {
-        tag: `v${sharedVersion}`,
-        notes: targets.map(({ name, version }) => `- ${name}@${version}\n`).join(""),
-        prerelease: sharedVersion.includes("-"),
-      },
-    ]
+// The tag scheme comes from config, never from the versions of a run, so a version keeps
+// the same tag on every run. `version` needs every package at one version.
+export function getReleases<T extends PublishTarget>(
+  targets: T[],
+  releaseTag: ReleaseTag,
+): PlannedRelease<T>[] {
+  if (releaseTag === "package") {
+    return targets.map(target => ({
+      tag: `${target.name}@${target.version}`,
+      notes: `- ${target.name}@${target.version}\n`,
+      prerelease: target.version.includes("-"),
+      targets: [target],
+    }))
   }
 
-  return targets.map(({ name, version }) => ({
-    tag: `${name}@${version}`,
-    notes: `- ${name}@${version}\n`,
-    prerelease: version.includes("-"),
-  }))
+  const versions = [...new Set(targets.map(target => target.version))]
+  const [version] = versions
+
+  if (version === undefined) return []
+
+  if (versions.length > 1) {
+    throw new Error(
+      `releaseTag "version" needs every package at one version, found ${versions.join(", ")}. Release the packages in lockstep or set releaseTag to "package".`,
+    )
+  }
+
+  return [
+    {
+      tag: `v${version}`,
+      notes: targets.map(target => `- ${target.name}@${target.version}\n`).join(""),
+      prerelease: version.includes("-"),
+      targets,
+    },
+  ]
+}
+
+// A release for a version published in this run points at HEAD. A version that was already
+// on npm only gets a release when npm recorded a commit of this repository as its gitHead,
+// so a version published by hand or by an older setup never gets a release at the wrong
+// commit. Returns undefined when the release must not be created.
+export async function findReleaseCommit(
+  release: PlannedRelease<PublishDecision>,
+  sources: ReleaseSources,
+): Promise<string | undefined> {
+  if (release.targets.some(target => !target.skip)) return sources.headCommit
+
+  const gitHeads = new Set<string | undefined>()
+
+  for (const { name, version } of release.targets) {
+    gitHeads.add(await sources.registry.getGitHead(name, version))
+  }
+
+  const [gitHead] = gitHeads
+
+  if (gitHeads.size !== 1 || !gitHead) return
+
+  return (await sources.hasCommit(gitHead)) ? gitHead : undefined
 }
 
 const npmRegistry: Registry = {
@@ -136,6 +193,12 @@ const npmRegistry: Registry = {
     if (/\bE404\b/.test(result.stderr)) return false
 
     throw new Error(`npm view ${name}@${version} failed:\n${result.stderr.trim()}`)
+  },
+
+  async getGitHead(name, version) {
+    const result = runCommand("npm", ["view", `${name}@${version}`, "gitHead"])
+
+    return result.status === 0 ? result.stdout.trim() || undefined : undefined
   },
 }
 
@@ -165,7 +228,11 @@ function getHeadCommit(root: string): string {
 
 export async function publish(options: PublishOptions): Promise<void> {
   const { root, packagesDir, packages, dryRun, registry = npmRegistry } = options
+  const releaseTag = options.releaseTag ?? getDefaultReleaseTag(packages)
   const targets = await readPublishTargets(root, packagesDir, packages)
+
+  // Checked before publishing, so a version mismatch fails the run before anything reaches npm.
+  getReleases(targets, releaseTag)
 
   const npmVersion = getNpmVersion()
 
@@ -212,9 +279,11 @@ export async function publish(options: PublishOptions): Promise<void> {
 
   // Releases cover every current version, not only the ones published in this run, so a
   // re-run creates a release that failed after its packages reached npm.
-  for (const release of getReleases(decisions)) {
+  for (const release of getReleases(decisions, releaseTag)) {
     if (!client) {
-      console.log(`would create release ${release.tag} unless it exists`)
+      if (release.targets.some(target => !target.skip)) {
+        console.log(`would create release ${release.tag} unless it exists`)
+      }
       continue
     }
 
@@ -223,7 +292,18 @@ export async function publish(options: PublishOptions): Promise<void> {
       continue
     }
 
-    await createGitHubRelease(client, release, getHeadCommit(root))
+    const commit = await findReleaseCommit(release, {
+      headCommit: getHeadCommit(root),
+      registry,
+      hasCommit: sha => hasGitHubCommit(client, sha),
+    })
+
+    if (!commit) {
+      console.log(`skip release ${release.tag}: npm has no gitHead from this repository`)
+      continue
+    }
+
+    await createGitHubRelease(client, release, commit)
     console.log(`created release ${release.tag}`)
   }
 }

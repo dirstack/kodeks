@@ -133,11 +133,13 @@ npm only attests [provenance](https://docs.npmjs.com/generating-provenance-state
 
 1. **Version (monorepo).** A pushed changeset opens or updates a "Version Packages" pull request. Merging it bumps the versions and writes the changelogs on `main`.
 2. **Sync (monorepo to mirror).** The version bump on `main` runs `kodeks sync-public`, which copies the listed packages and root files into a checkout of the mirror and pushes the result.
-3. **Release (mirror).** The sync commit runs the mirror's release workflow. It builds every package and runs `kodeks publish`, which publishes each version that is not on npm yet and creates any missing GitHub Release for the current versions.
+3. **Release (mirror).** The sync commit runs the mirror's release workflow. It builds every package and runs `kodeks publish`, which publishes each version that is not on npm yet and creates its GitHub Release.
 
 `kodeks publish` skips versions that are already on npm, so a sync that changes no version publishes nothing. The dist-tag follows the version: `1.2.3` publishes under `latest`, `1.2.3-beta.0` under `beta` and is marked as a GitHub prerelease.
 
-When every published package has the same version, `kodeks publish` creates one release tagged `v<version>` that lists them all. When the versions differ, each package gets its own release tagged `<name>@<version>`. Release creation checks for an existing release first, so a re-run creates a release that failed after its packages reached npm.
+The `releaseTag` setting picks the release tags. With `"version"`, one release tagged `v<version>` lists every package, and `kodeks publish` stops before publishing when the packages have different versions. With `"package"`, each package gets its own release tagged `<name>@<version>`. The default is `"version"` for one package and `"package"` for several.
+
+A re-run recovers a release that failed after its packages reached npm. For a version that is already on npm, `kodeks publish` reads the commit npm recorded at publish time (`gitHead`). It creates the missing release at that commit only when the commit belongs to the mirror. A version published by hand, or by an earlier setup, gets no release.
 
 ### Setup in the monorepo
 
@@ -162,6 +164,7 @@ Create a `kodeks.release.json` in the repository root. The commands read their d
 ```json
 {
   "packages": ["core", "sdk", "react"],
+  "releaseTag": "version",
   "sync": {
     "packages": ["core", "sdk", "react", "tsconfig"],
     "licenseFrom": "packages/sdk/LICENSE",
@@ -174,6 +177,7 @@ Create a `kodeks.release.json` in the repository root. The commands read their d
 | --- | --- | --- |
 | `packagesDir` | `"packages"` | Directory that holds the package directories, in both repositories. |
 | `packages` | | Package directories to publish, in publish order. |
+| `releaseTag` | `"version"` for one package, `"package"` for several | `"version"` tags one `v<version>` release for packages released in lockstep. `"package"` tags one `<name>@<version>` release per package. |
 | `sync.packages` | `packages` | Package directories to mirror. Add shared private packages the public ones build with, such as a `tsconfig` package. |
 | `sync.licenseFrom` | | File copied to the mirror's root `LICENSE`. |
 | `sync.extra` | | Files or directories copied into the mirror, as `"source"` (same path) or `"source:destination"`. A directory merges into the destination. |
@@ -199,7 +203,7 @@ Keep the mirror's root files in the monorepo and list them in `sync.extra`. In t
 }
 ```
 
-On every sync, `kodeks sync-public` replaces the mirror's `packages` directory with the package files git does not ignore, so a local `.env` never reaches the mirror. It also writes a `.gitignore` and a `kodeks.release.json` that only lists the packages to publish. Extras are copied last, so an extra can replace either generated file. Root files that were removed from the monorepo stay in the mirror until you delete them there.
+On every sync, `kodeks sync-public` replaces the mirror's `packages` directory with the package files git does not ignore, so a local `.env` never reaches the mirror. It also writes a `.gitignore` and a `kodeks.release.json` that only holds the packages to publish and the `releaseTag`. Extras are copied last, so an extra can replace either generated file. Root files that were removed from the monorepo stay in the mirror until you delete them there.
 
 ### Changesets
 
@@ -214,7 +218,7 @@ This writes `.changeset/config.json` with two settings for this setup:
 - `"privatePackages": { "version": false, "tag": false }` keeps every private workspace package out of versioning, so there is no `ignore` list to maintain.
 - `"changelog": "@dirstack/kodeks/changesets-changelog"` writes changelog entries without commit hashes or pull request links, which would point at the private monorepo. The changelog needs Node 22.12 or newer.
 
-To release packages in lockstep (one version, one `v<version>` GitHub Release), list them in `fixed`. To publish prereleases, run `bunx changeset pre enter beta` in the monorepo and commit `.changeset/pre.json`. Run `bunx changeset pre exit` to return to stable versions.
+To release packages in lockstep, list them in `fixed` and set `"releaseTag": "version"` in `kodeks.release.json`, so they share one `v<version>` GitHub Release. To publish prereleases, run `bunx changeset pre enter beta` in the monorepo and commit `.changeset/pre.json`. Run `bunx changeset pre exit` to return to stable versions.
 
 ### Workflows
 
