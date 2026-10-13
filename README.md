@@ -135,7 +135,7 @@ npm only attests [provenance](https://docs.npmjs.com/generating-provenance-state
 2. **Sync (monorepo to mirror).** The version bump on `main` runs `kodeks sync-public`, which copies the listed packages and root files into a checkout of the mirror and pushes the result.
 3. **Release (mirror).** The sync commit runs the mirror's release workflow. It builds every package and runs `kodeks publish`, which publishes each version that is not on npm yet and creates its GitHub Release.
 
-`kodeks publish` skips versions that are already on npm, so a sync that changes no version publishes nothing. The dist-tag follows the version: `1.2.3` publishes under `latest`, `1.2.3-beta.0` under `beta` and is marked as a GitHub prerelease.
+`kodeks publish` skips versions that are already on npm, so a sync that changes no version publishes nothing. The dist-tag follows the version: `1.2.3` publishes under `latest`, `1.2.3-beta.0` under `beta` and is marked as a GitHub prerelease. A stable version below the current `latest`, such as a `1.0.1` backport after `2.0.0`, publishes under `latest-1`, so `latest` never moves backwards. `kodeks publish` passes `--provenance`, so a publish that cannot attest provenance fails instead of succeeding without it.
 
 The `releaseTag` setting picks the release tags. With `"version"`, one release tagged `v<version>` lists every package, and `kodeks publish` stops before publishing when the packages have different versions. With `"package"`, each package gets its own release tagged `<name>@<version>`. The default is `"version"` for one package and `"package"` for several.
 
@@ -157,7 +157,7 @@ Each public package publishes from its built `dist` directory. Run `kodeks prepa
 }
 ```
 
-`kodeks prepare-package [dir]` rewrites the entry points from `./src/*.ts` to `./*.js` and `./*.d.ts`, replaces `workspace:` ranges with the sibling package versions, removes `files`, `scripts`, `devDependencies` and `publishConfig.directory`, and copies the package's own `README.md` and `LICENSE` into `dist`.
+`kodeks prepare-package [dir]` rewrites the entry points from `./src/*.ts` to `./*.js` and `./*.d.ts`, including nested conditions such as `react-server`. It points `main`, `module` and `types` at the root export's built files, and drops them when the package has no root export. It also replaces `workspace:` ranges with the sibling package versions, removes `files`, `scripts`, `devDependencies` and `publishConfig.directory`, and copies the package's own `README.md` and `LICENSE` into `dist`.
 
 Create a `kodeks.release.json` in the repository root. The commands read their defaults from this file, and command-line flags override them:
 
@@ -180,7 +180,7 @@ Create a `kodeks.release.json` in the repository root. The commands read their d
 | `releaseTag` | `"version"` for one package, `"package"` for several | `"version"` tags one `v<version>` release for packages released in lockstep. `"package"` tags one `<name>@<version>` release per package. |
 | `sync.packages` | `packages` | Package directories to mirror. Add shared private packages the public ones build with, such as a `tsconfig` package. |
 | `sync.licenseFrom` | | File copied to the mirror's root `LICENSE`. |
-| `sync.extra` | | Files or directories copied into the mirror, as `"source"` (same path) or `"source:destination"`. A directory merges into the destination. |
+| `sync.extra` | | Files or directories copied into the mirror, as `"source"` (same path) or `"source:destination"`. A directory merges into the destination. Files git ignores inside a directory are skipped, and an extra file that git ignores is an error. |
 | `sync.exclude` | | Names skipped at any depth, on top of `dist`, `node_modules` and `.turbo`. |
 
 Keep the mirror's root files in the monorepo and list them in `sync.extra`. In the example above, `scripts/mirror/root/` holds the mirror's `README.md` and `package.json`. The mirror's `package.json` builds the public packages and needs Kodeks:
@@ -203,7 +203,9 @@ Keep the mirror's root files in the monorepo and list them in `sync.extra`. In t
 }
 ```
 
-On every sync, `kodeks sync-public` replaces the mirror's `packages` directory with the package files git does not ignore, so a local `.env` never reaches the mirror. It also writes a `.gitignore` and a `kodeks.release.json` that only holds the packages to publish and the `releaseTag`. Extras are copied last, so an extra can replace either generated file. Root files that were removed from the monorepo stay in the mirror until you delete them there.
+On every sync, `kodeks sync-public` replaces the mirror's `packages` directory with the package files git does not ignore, so a local `.env` never reaches the mirror. It only runs in a git repository, and stops with an error when `git ls-files` fails. It also writes a `.gitignore` and a `kodeks.release.json` that only holds the packages to publish and the `releaseTag`. Extras are copied last, so an extra can replace either generated file. Root files that were removed from the monorepo stay in the mirror until you delete them there.
+
+The mirror keeps its own `bun.lock`, because the monorepo's lockfile describes private packages. The sync workflow refreshes it after each sync with `bun install --lockfile-only --ignore-scripts`, which resolves only what changed and installs nothing. The release then installs with `--frozen-lockfile`, so every publish builds with the versions committed in the mirror. After a local `kodeks sync-public`, run that same command in the mirror before you commit.
 
 ### Changesets
 
@@ -275,7 +277,9 @@ jobs:
       mirror-deploy-key: ${{ secrets.MIRROR_DEPLOY_KEY }}
 ```
 
-The sync workflow runs the `@dirstack/kodeks` range from the monorepo's root `package.json`, without installing the monorepo's dependencies. Inputs: `mirror-repository` (required), `mirror-branch` (default `main`), `kodeks-version`, and `commit-message`. The version workflow accepts `bun-version`, `install-command`, `version-command` (default `bunx changeset version`) and `title`.
+The sync workflow runs the `@dirstack/kodeks` range from the monorepo's root `package.json`, without installing the monorepo's dependencies. Inputs: `mirror-repository` (required), `mirror-branch` (default `main`), `kodeks-version`, `commit-message`, and `lockfile-command` (empty skips the lockfile refresh). The version workflow accepts `bun-version`, `install-command`, `version-command` (default `bunx changeset version`) and `title`.
+
+GitHub starts no workflows for a pull request opened with the default `GITHUB_TOKEN`, so CI does not run on the "Version Packages" pull request. To run CI on it, pass a GitHub App token or a fine-grained token as the `github-token` secret of the version workflow.
 
 The mirror calls the release workflow from its own `.github/workflows/release.yml`:
 
@@ -300,11 +304,11 @@ jobs:
     uses: dirstack/kodeks/.github/workflows/public-release.yml@v1.9.0
 ```
 
-The release workflow installs npm 11 (input `npm-version`), runs `install-command` (default `bun install`) and `build-command` (default `bun run build`), then runs `kodeks publish`. Commit this file to the mirror once, by hand.
+The release workflow installs npm 11 (input `npm-version`), runs `install-command` (default `bun install --frozen-lockfile`) and `build-command` (default `bun run build`), then runs `kodeks publish`. Commit this file to the mirror once, by hand.
 
 ### Trusted publishing on npmjs.com
 
-`kodeks publish` authenticates with [npm trusted publishing](https://docs.npmjs.com/trusted-publishers) (OIDC), so the mirror needs no `NPM_TOKEN`. npm attests provenance automatically. Trusted publishing needs npm 11.5.1 or newer, and `kodeks publish` stops with an error when the npm in `PATH` is older.
+`kodeks publish` authenticates with [npm trusted publishing](https://docs.npmjs.com/trusted-publishers) (OIDC), so the mirror needs no `NPM_TOKEN`. npm attests provenance for each publish. Trusted publishing needs npm 11.5.1 or newer, and `kodeks publish` stops with an error when the npm in `PATH` is older.
 
 npm validates the **calling** workflow, so the reusable release workflow works as long as the trusted publisher names the mirror's own workflow file:
 

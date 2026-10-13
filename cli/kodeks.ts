@@ -33,8 +33,9 @@ const commands: Record<string, Command> = {
     usage: `Usage: kodeks prepare-package [dir]
 
 Writes <dir>/dist/package.json, the manifest npm publishes. Entry points move from
-./src/*.ts to the built ./*.js and ./*.d.ts files, workspace: ranges become real
-versions, and files, scripts and devDependencies are dropped. README.md and LICENSE
+./src/*.ts to the built ./*.js and ./*.d.ts files, nested conditions included, and main,
+module and types follow the root export. workspace: ranges become real versions, and
+files, scripts and devDependencies are dropped. README.md and LICENSE
 are copied from <dir> into dist. <dir> defaults to the current directory.
 `,
     async run(args) {
@@ -50,7 +51,8 @@ are copied from <dir> into dist. <dir> defaults to the current directory.
 
 Publishes each package from its built <packagesDir>/<package>/dist, in the listed order.
 Versions already on npm are skipped. A prerelease such as 1.2.3-beta.0 publishes under
-the "beta" dist-tag, a plain version under "latest". A missing GitHub Release is created for
+the "beta" dist-tag, a plain version under "latest", and a stable version below the current
+"latest" under "latest-<major>". A missing GitHub Release is created for
 each version published in this run, and for each earlier version whose npm gitHead is a
 commit of this repository. "releaseTag" in ${CONFIG_FILE} picks the tags: "version" for one
 "v<version>" release (packages in lockstep), "package" for one "<name>@<version>" release per
