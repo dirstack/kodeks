@@ -1,9 +1,9 @@
 import { describe, expect, it } from "bun:test"
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { runCommand } from "./command.ts"
-import { listSyncFiles, parseExtra, syncPublic } from "./sync-public.ts"
+import { listExtraFiles, listSyncFiles, parseExtra, syncPublic } from "./sync-public.ts"
 
 async function writeTree(root: string, files: Record<string, string>) {
   for (const [file, content] of Object.entries(files)) {
@@ -27,10 +27,24 @@ async function createMonorepo() {
     "packages/tsconfig/base.json": "{}\n",
     "packages/api/package.json": JSON.stringify({ name: "@acme/api", private: true }),
     "packages/sdk/LICENSE": "MIT\n",
+    "packages/sdk/.env": "API_SECRET=do-not-publish\n",
     "mirror/README.md": "# Acme\n",
+    "mirror/.env": "API_SECRET=do-not-publish\n",
+    ".gitignore": ".env\n",
   })
 
+  runCommand("git", ["init", "--quiet"], { cwd: root })
+
   return root
+}
+
+async function listTree(directory: string): Promise<string[]> {
+  const entries = await readdir(directory, { recursive: true, withFileTypes: true })
+
+  return entries
+    .filter(entry => entry.isFile())
+    .map(entry => path.relative(directory, path.join(entry.parentPath, entry.name)))
+    .sort()
 }
 
 describe("listSyncFiles", () => {
@@ -56,18 +70,19 @@ describe("listSyncFiles", () => {
     expect(files).not.toContain("packages/sdk/LICENSE")
   })
 
-  it("should skip files git ignores when the monorepo is a git repository", async () => {
+  it("should skip files git ignores", async () => {
     const root = await createMonorepo()
-    await writeTree(root, {
-      ".gitignore": ".env\n",
-      "packages/sdk/.env": "API_SECRET=do-not-publish\n",
-    })
-    runCommand("git", ["init", "--quiet"], { cwd: root })
-
     const files = await listSyncFiles(root, "packages", ["sdk"])
 
     expect(files).not.toContain("packages/sdk/.env")
     expect(files).toContain("packages/sdk/src/index.ts")
+  })
+
+  it("should throw when the monorepo is not a git repository", async () => {
+    const root = await mkdtemp(path.join(tmpdir(), "kodeks-plain-"))
+    await writeTree(root, { "packages/sdk/.env": "API_SECRET=do-not-publish\n" })
+
+    await expect(listSyncFiles(root, "packages", ["sdk"])).rejects.toThrow("git ls-files failed")
   })
 
   it("should throw when a package directory is missing", async () => {
@@ -75,6 +90,30 @@ describe("listSyncFiles", () => {
 
     await expect(listSyncFiles(root, "packages", ["browser"])).rejects.toThrow(
       "Package directory packages/browser not found.",
+    )
+  })
+})
+
+describe("listExtraFiles", () => {
+  it("should expand a directory and skip the files git ignores", async () => {
+    const root = await createMonorepo()
+    const files = await listExtraFiles(root, [parseExtra("mirror:.")])
+
+    expect(files).toEqual([{ source: "mirror/README.md", destination: "README.md" }])
+  })
+
+  it("should map a single file to its destination", async () => {
+    const root = await createMonorepo()
+    const files = await listExtraFiles(root, [parseExtra("./mirror/README.md:docs/README.md")])
+
+    expect(files).toEqual([{ source: "mirror/README.md", destination: "docs/README.md" }])
+  })
+
+  it("should throw when an extra file is ignored by git", async () => {
+    const root = await createMonorepo()
+
+    await expect(listExtraFiles(root, [parseExtra("mirror/.env:.env")])).rejects.toThrow(
+      "Extra mirror/.env is ignored by git",
     )
   })
 })
@@ -100,7 +139,7 @@ describe("parseExtra", () => {
 })
 
 describe("syncPublic", () => {
-  it("should mirror packages, root files and the publish config", async () => {
+  it("should mirror packages, root files and the publish config, but no ignored file", async () => {
     const root = await createMonorepo()
     const target = await mkdtemp(path.join(tmpdir(), "kodeks-mirror-"))
     await writeTree(target, { "packages/removed/index.ts": "stale\n" })
@@ -121,8 +160,18 @@ describe("syncPublic", () => {
     expect(config).toEqual({ packages: ["sdk"], releaseTag: "version" })
     expect(await readFile(path.join(target, "LICENSE"), "utf8")).toBe("MIT\n")
     expect(await readFile(path.join(target, "README.md"), "utf8")).toBe("# Acme\n")
-    expect(await listSyncFiles(target, "packages", ["sdk", "tsconfig"])).toHaveLength(6)
-    await expect(listSyncFiles(target, "packages", ["removed"])).rejects.toThrow("not found")
+    expect(await listTree(target)).toEqual([
+      ".gitignore",
+      "LICENSE",
+      "README.md",
+      "kodeks.release.json",
+      "packages/sdk/.npmignore",
+      "packages/sdk/LICENSE",
+      "packages/sdk/package.json",
+      "packages/sdk/src/index.ts",
+      "packages/tsconfig/base.json",
+      "packages/tsconfig/package.json",
+    ])
   })
 
   it.each([".", "..", "packages/.."])(
