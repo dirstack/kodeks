@@ -59,9 +59,31 @@ describe("rewriteExport", () => {
     expect(rewriteExport("./dist/styles.css")).toBe("./styles.css")
   })
 
-  it("should leave a conditional export object unchanged", () => {
+  it("should leave conditions that point at published files unchanged", () => {
     const conditional = { import: "./index.js", require: "./index.cjs" }
-    expect(rewriteExport(conditional)).toBe(conditional)
+    expect(rewriteExport(conditional)).toEqual(conditional)
+  })
+
+  it("should rewrite each source condition to its own types and import pair", () => {
+    expect(
+      rewriteExport({ "react-server": "./src/next/server.ts", default: "./src/next/index.ts" }),
+    ).toEqual({
+      "react-server": { types: "./next/server.d.ts", import: "./next/server.js" },
+      default: { types: "./next/index.d.ts", import: "./next/index.js" },
+    })
+  })
+
+  it("should rewrite source conditions next to a types condition to built files", () => {
+    expect(rewriteExport({ types: "./src/index.ts", import: "./src/index.ts" })).toEqual({
+      types: "./index.d.ts",
+      import: "./index.js",
+    })
+  })
+
+  it("should rewrite nested conditions", () => {
+    expect(rewriteExport({ node: { "react-server": "./src/server.tsx" } })).toEqual({
+      node: { "react-server": { types: "./server.d.ts", import: "./server.js" } },
+    })
   })
 })
 
@@ -134,6 +156,75 @@ describe("generateDistManifest", () => {
 
     expect(manifest.dependencies).toEqual({ "@acme/sdk": "0.9.0", clsx: "^2.1.1" })
     expect(manifest.peerDependencies).toEqual({ "@acme/embeds": "^0.9.0", react: ">=18 <20" })
+  })
+
+  it("should point main and types at the root export's built files", () => {
+    const manifest = generateDistManifest(
+      { name: "@acme/cli", exports: { ".": "./src/main.ts", "./config": "./src/config.ts" } },
+      new Map(),
+    )
+
+    expect([manifest.main, manifest.module, manifest.types]).toEqual([
+      "./main.js",
+      "./main.js",
+      "./main.d.ts",
+    ])
+  })
+
+  it("should follow the default condition of a conditional root export", () => {
+    const manifest = generateDistManifest(
+      {
+        name: "@acme/next",
+        exports: { ".": { "react-server": "./src/server.ts", default: "./src/client.ts" } },
+      },
+      new Map(),
+    )
+
+    expect([manifest.main, manifest.types]).toEqual(["./client.js", "./client.d.ts"])
+  })
+
+  it("should drop main, module and types when there is no root export", () => {
+    const manifest = generateDistManifest(
+      {
+        name: "@acme/icons",
+        main: "./src/index.ts",
+        types: "./src/index.ts",
+        exports: { "./*": "./src/icons/*.tsx" },
+      },
+      new Map(),
+    )
+
+    expect(["main", "module", "types"].filter(key => key in manifest)).toEqual([])
+  })
+
+  it("should rewrite a source main and add no exports when the package has none", () => {
+    const manifest = generateDistManifest(
+      { name: "@acme/legacy", main: "./src/index.ts" },
+      new Map(),
+    )
+
+    expect(manifest).toEqual({
+      name: "@acme/legacy",
+      main: "./index.js",
+      module: "./index.js",
+      types: "./index.d.ts",
+    })
+  })
+
+  it("should keep a main that already points at a published file", () => {
+    const manifest = generateDistManifest({ name: "@acme/legacy", main: "./index.cjs" }, new Map())
+
+    expect(manifest).toEqual({ name: "@acme/legacy", main: "./index.cjs" })
+  })
+
+  it("should rewrite exports given as root conditions", () => {
+    const manifest = generateDistManifest(
+      { name: "@acme/sdk", exports: { types: "./src/index.ts", import: "./src/index.ts" } },
+      new Map(),
+    )
+
+    expect(manifest.exports).toEqual({ types: "./index.d.ts", import: "./index.js" })
+    expect(manifest.main).toBe("./index.js")
   })
 
   it("should omit publishConfig when only the directory hint was set", () => {
