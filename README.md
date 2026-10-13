@@ -133,9 +133,11 @@ npm only attests [provenance](https://docs.npmjs.com/generating-provenance-state
 
 1. **Version (monorepo).** A pushed changeset opens or updates a "Version Packages" pull request. Merging it bumps the versions and writes the changelogs on `main`.
 2. **Sync (monorepo to mirror).** The version bump on `main` runs `kodeks sync-public`, which copies the listed packages and root files into a checkout of the mirror and pushes the result.
-3. **Release (mirror).** The sync commit runs the mirror's release workflow. It builds every package and runs `kodeks publish`, which publishes each version that is not on npm yet and creates one GitHub Release per new version.
+3. **Release (mirror).** The sync commit runs the mirror's release workflow. It builds every package and runs `kodeks publish`, which publishes each version that is not on npm yet and creates any missing GitHub Release for the current versions.
 
 `kodeks publish` skips versions that are already on npm, so a sync that changes no version publishes nothing. The dist-tag follows the version: `1.2.3` publishes under `latest`, `1.2.3-beta.0` under `beta` and is marked as a GitHub prerelease.
+
+When every published package has the same version, `kodeks publish` creates one release tagged `v<version>` that lists them all. When the versions differ, each package gets its own release tagged `<name>@<version>`. Release creation checks for an existing release first, so a re-run creates a release that failed after its packages reached npm.
 
 ### Setup in the monorepo
 
@@ -212,7 +214,7 @@ This writes `.changeset/config.json` with two settings for this setup:
 - `"privatePackages": { "version": false, "tag": false }` keeps every private workspace package out of versioning, so there is no `ignore` list to maintain.
 - `"changelog": "@dirstack/kodeks/changesets-changelog"` writes changelog entries without commit hashes or pull request links, which would point at the private monorepo. The changelog needs Node 22.12 or newer.
 
-To release packages in lockstep (one version, one GitHub Release), list them in `fixed`. To publish prereleases, run `bunx changeset pre enter beta` in the monorepo and commit `.changeset/pre.json`. Run `bunx changeset pre exit` to return to stable versions.
+To release packages in lockstep (one version, one `v<version>` GitHub Release), list them in `fixed`. To publish prereleases, run `bunx changeset pre enter beta` in the monorepo and commit `.changeset/pre.json`. Run `bunx changeset pre exit` to return to stable versions.
 
 ### Workflows
 

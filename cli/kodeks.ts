@@ -50,8 +50,9 @@ are copied from <dir> into dist. <dir> defaults to the current directory.
 
 Publishes each package from its built <packagesDir>/<package>/dist, in the listed order.
 Versions already on npm are skipped. A prerelease such as 1.2.3-beta.0 publishes under
-the "beta" dist-tag, a plain version under "latest". One GitHub Release is created per
-newly published version.
+the "beta" dist-tag, a plain version under "latest". Any missing GitHub Release for the
+current versions is created: one "v<version>" release when every package shares a version,
+otherwise one "<name>@<version>" release per package.
 
 Runs under npm trusted publishing (OIDC), so no NPM_TOKEN is needed. Requires npm 11.5.1
 or newer, and GITHUB_TOKEN to create releases.

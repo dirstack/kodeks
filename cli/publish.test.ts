@@ -93,7 +93,7 @@ describe("planPublish", () => {
 })
 
 describe("getReleases", () => {
-  it("should cut one release for packages sharing a version", () => {
+  it("should cut one version release for packages sharing a version", () => {
     expect(getReleases(targets)).toEqual([
       {
         tag: "v1.2.0",
@@ -103,15 +103,43 @@ describe("getReleases", () => {
     ])
   })
 
-  it("should cut one release per distinct version", () => {
+  it("should mark a shared prerelease version as a prerelease", () => {
+    const releases = getReleases([
+      { directory: "packages/sdk/dist", name: "@acme/sdk", version: "2.0.0-beta.1" },
+    ])
+
+    expect(releases).toEqual([
+      { tag: "v2.0.0-beta.1", notes: "- @acme/sdk@2.0.0-beta.1\n", prerelease: true },
+    ])
+  })
+
+  it("should cut one package release each when versions differ", () => {
     const releases = getReleases([
       { directory: "packages/sdk/dist", name: "@acme/sdk", version: "1.2.0" },
       { directory: "packages/cli/dist", name: "@acme/cli", version: "0.3.0-beta.1" },
     ])
 
     expect(releases.map(release => [release.tag, release.prerelease])).toEqual([
-      ["v1.2.0", false],
-      ["v0.3.0-beta.1", true],
+      ["@acme/sdk@1.2.0", false],
+      ["@acme/cli@0.3.0-beta.1", true],
     ])
+  })
+
+  it("should give two packages reaching the same version at different times their own tags", () => {
+    const first = getReleases([
+      { directory: "packages/sdk/dist", name: "@acme/sdk", version: "1.0.1" },
+      { directory: "packages/cli/dist", name: "@acme/cli", version: "1.0.0" },
+    ])
+    const second = getReleases([
+      { directory: "packages/sdk/dist", name: "@acme/sdk", version: "1.0.2" },
+      { directory: "packages/cli/dist", name: "@acme/cli", version: "1.0.1" },
+    ])
+
+    expect(first.map(release => release.tag)).toContain("@acme/sdk@1.0.1")
+    expect(second.map(release => release.tag)).toContain("@acme/cli@1.0.1")
+  })
+
+  it("should return no release when there are no packages", () => {
+    expect(getReleases([])).toEqual([])
   })
 })
