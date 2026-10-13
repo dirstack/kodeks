@@ -63,10 +63,11 @@ jobs:
           exit 1
 
       - name: Open or update the version pull request
-        uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
+        # v2 reads the `.changeset/pre/` directory that @changesets/cli 3 writes in pre mode;
+        # v1 mistakes it for a legacy changeset and fails with ENOENT on `pre/changes.md`.
+        uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
-          version: ${{ inputs.version-command }}
-          commit: ${{ inputs.title }}
-          title: ${{ inputs.title }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.github-token || github.token }}
+          version-script: ${{ inputs.version-command }}
+          commit-message: ${{ inputs.title }}
+          pr-title: ${{ inputs.title }}
+          github-token: ${{ secrets.github-token || github.token }}
