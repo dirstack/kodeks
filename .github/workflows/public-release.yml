@@ -33,7 +33,7 @@ on:
         type: string
         default: bun run build
       publish-command:
-        description: Command that runs `kodeks publish`. Kodeks itself runs its own built CLI.
+        description: Command that runs `kodeks publish`.
         type: string
         default: bunx kodeks publish
 

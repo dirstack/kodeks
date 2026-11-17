@@ -1,8 +1,7 @@
 name: Release
 
-# Kodeks releases itself with its own workflows. Pending changesets open or update the
-# "Version Packages" pull request, and merging it publishes the new version. The workflows are
-# called by path, so a release always runs the workflow files of the commit being released.
+# The reusable workflows are called by path, so a release runs the workflow files of the commit
+# being released.
 on:
   push:
     branches: [main]
