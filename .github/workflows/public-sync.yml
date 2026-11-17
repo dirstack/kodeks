@@ -22,7 +22,7 @@ on:
         type: string
         default: main
       kodeks-version:
-        description: Version of @dirstack/kodeks to run. Empty reads the range from package.json.
+        description: Version of kodeks to run. Empty reads the range from package.json.
         type: string
         default: ""
       commit-message:
@@ -62,14 +62,17 @@ jobs:
         with:
           node-version: 24
 
-      # Runs kodeks without installing the monorepo's dependencies.
+      # Runs kodeks without installing the monorepo's dependencies. A monorepo that depends on
+      # @underpin/kodeks runs that package. One that still depends on @dirstack/kodeks, its
+      # earlier name, runs that one.
       - name: Sync packages into the mirror
         working-directory: monorepo
         env:
           KODEKS_VERSION: ${{ inputs.kodeks-version }}
         run: |
-          version="${KODEKS_VERSION:-$(node -p "const p = require('./package.json'); p.devDependencies?.['@dirstack/kodeks'] ?? p.dependencies?.['@dirstack/kodeks'] ?? 'latest'")}"
-          npm exec --yes --package="@dirstack/kodeks@$version" -- kodeks sync-public --target "$GITHUB_WORKSPACE/mirror"
+          package=$(node -p "const p = require('./package.json'); const d = { ...p.dependencies, ...p.devDependencies }; d['@underpin/kodeks'] || !d['@dirstack/kodeks'] ? '@underpin/kodeks' : '@dirstack/kodeks'")
+          version="${KODEKS_VERSION:-$(node -p "const p = require('./package.json'); p.devDependencies?.['$package'] ?? p.dependencies?.['$package'] ?? 'latest'")}"
+          npm exec --yes --package="$package@$version" -- kodeks sync-public --target "$GITHUB_WORKSPACE/mirror"
 
       - name: Setup Bun
         if: inputs.lockfile-command != ''

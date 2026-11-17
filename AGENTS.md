@@ -1,6 +1,6 @@
 # Kodeks
 
-Shared lint, format, commit and release configs, plus the `kodeks` CLI in `cli/`. Published to npm as `@dirstack/kodeks`.
+Shared lint, format, commit and release configs, plus the `kodeks` CLI in `cli/`. Published to npm as `@underpin/kodeks`, which was `@dirstack/kodeks` up to 1.11.0.
 
 ## Checks
 

@@ -1,9 +1,11 @@
 # Kodeks
 
-[![npm version](https://img.shields.io/npm/v/%40dirstack%2Fkodeks.svg)](https://www.npmjs.com/package/@dirstack/kodeks)
-[![license](https://img.shields.io/npm/l/%40dirstack%2Fkodeks.svg)](https://github.com/dirstack/kodeks/blob/main/LICENSE)
+[![npm version](https://img.shields.io/npm/v/%40underpin%2Fkodeks.svg)](https://www.npmjs.com/package/@underpin/kodeks)
+[![license](https://img.shields.io/npm/l/%40underpin%2Fkodeks.svg)](https://github.com/dirstack/kodeks/blob/main/LICENSE)
 
 Shared linter configurations and release tooling for TypeScript projects.
+
+Renamed from `@dirstack/kodeks`, whose last version is 1.11.0. `@underpin/kodeks` continues its 1.x line: replace the package name in your `package.json` and in every config path that names it. The workflows stay in this repository, so `uses:` lines need no change.
 
 Kodeks provides reusable, opinionated configurations for maintaining consistent code quality across TypeScript projects, plus a `kodeks` CLI that releases npm packages with Changesets: from a single-package repository, a public monorepo, or a private monorepo through a public mirror.
 
@@ -12,14 +14,14 @@ Kodeks provides reusable, opinionated configurations for maintaining consistent 
 ### oxlint
 
 ```bash
-bun add -d @dirstack/kodeks oxlint
+bun add -d @underpin/kodeks oxlint
 ```
 
 Create a `.oxlintrc.json` file in your project root:
 
 ```json
 {
-  "extends": ["./node_modules/@dirstack/kodeks/configs/oxlint-base.json"]
+  "extends": ["./node_modules/@underpin/kodeks/configs/oxlint-base.json"]
 }
 ```
 
@@ -27,7 +29,7 @@ For Next.js projects, use the Next.js preset:
 
 ```json
 {
-  "extends": ["./node_modules/@dirstack/kodeks/configs/oxlint-next.json"]
+  "extends": ["./node_modules/@underpin/kodeks/configs/oxlint-next.json"]
 }
 ```
 
@@ -35,14 +37,14 @@ For TanStack projects, use the TanStack preset:
 
 ```json
 {
-  "extends": ["./node_modules/@dirstack/kodeks/configs/oxlint-tanstack.json"]
+  "extends": ["./node_modules/@underpin/kodeks/configs/oxlint-tanstack.json"]
 }
 ```
 
 ### oxfmt
 
 ```bash
-bun add -d @dirstack/kodeks oxfmt
+bun add -d @underpin/kodeks oxfmt
 ```
 
 Since oxfmt does not support configuration inheritance, you have two options:
@@ -54,7 +56,7 @@ Add to your `package.json` scripts:
 ```json
 {
   "scripts": {
-    "format": "oxfmt --config ./node_modules/@dirstack/kodeks/configs/oxfmt.json --write ."
+    "format": "oxfmt --config ./node_modules/@underpin/kodeks/configs/oxfmt.json --write ."
   }
 }
 ```
@@ -62,34 +64,34 @@ Add to your `package.json` scripts:
 **Option 2: Copy configuration locally**
 
 ```bash
-cp ./node_modules/@dirstack/kodeks/configs/oxfmt.json ./.oxfmtrc.json
+cp ./node_modules/@underpin/kodeks/configs/oxfmt.json ./.oxfmtrc.json
 ```
 
 ### Commitlint
 
 ```bash
-bun add -d @dirstack/kodeks @commitlint/cli @commitlint/config-conventional
+bun add -d @underpin/kodeks @commitlint/cli @commitlint/config-conventional
 ```
 
 Create a `commitlint.json` file in your project root:
 
 ```json
 {
-  "extends": ["./node_modules/@dirstack/kodeks/configs/commitlint.json"]
+  "extends": ["./node_modules/@underpin/kodeks/configs/commitlint.json"]
 }
 ```
 
 ### Semantic Release
 
 ```bash
-bun add -d @dirstack/kodeks semantic-release conventional-changelog-conventionalcommits
+bun add -d @underpin/kodeks semantic-release conventional-changelog-conventionalcommits
 ```
 
 Create a `release.json` file in your project root:
 
 ```json
 {
-  "extends": "@dirstack/kodeks/semantic-release"
+  "extends": "@underpin/kodeks/semantic-release"
 }
 ```
 
@@ -97,14 +99,14 @@ A dry-run variant is also available for CI validation:
 
 ```json
 {
-  "extends": "@dirstack/kodeks/semantic-release-dry-run"
+  "extends": "@underpin/kodeks/semantic-release-dry-run"
 }
 ```
 
 ### Lefthook
 
 ```bash
-bun add -d @dirstack/kodeks lefthook
+bun add -d @underpin/kodeks lefthook
 ```
 
 Create a `lefthook.json` file in your project root and extend the hooks you need:
@@ -112,9 +114,9 @@ Create a `lefthook.json` file in your project root and extend the hooks you need
 ```json
 {
   "extends": [
-    "node_modules/@dirstack/kodeks/configs/lefthook-oxlint.json",
-    "node_modules/@dirstack/kodeks/configs/lefthook-oxfmt.json",
-    "node_modules/@dirstack/kodeks/configs/lefthook-commitlint.json"
+    "node_modules/@underpin/kodeks/configs/lefthook-oxlint.json",
+    "node_modules/@underpin/kodeks/configs/lefthook-oxfmt.json",
+    "node_modules/@underpin/kodeks/configs/lefthook-commitlint.json"
   ]
 }
 ```
@@ -141,7 +143,7 @@ A re-run recovers a release that failed after its packages reached npm. For a ve
 ### Single package or public monorepo
 
 ```bash
-bun add -d @dirstack/kodeks @changesets/cli
+bun add -d @underpin/kodeks @changesets/cli
 bunx kodeks changesets init --repo acme/acme-js
 ```
 
@@ -208,7 +210,7 @@ The mirror setup adds a sync step between versioning and releasing:
 #### Setup in the monorepo
 
 ```bash
-bun add -d @dirstack/kodeks @changesets/cli
+bun add -d @underpin/kodeks @changesets/cli
 ```
 
 Each public package publishes from its built `dist` directory. Run `kodeks prepare-package` after the bundler, so `dist/package.json` points at the built files:
@@ -262,7 +264,7 @@ Keep the mirror's root files in the monorepo and list them in `sync.extra`. In t
     "build": "bun run --filter '@acme/core' --filter '@acme/sdk' --filter '@acme/react' build"
   },
   "devDependencies": {
-    "@dirstack/kodeks": "^1.9.0",
+    "@underpin/kodeks": "^1.9.0",
     "tsdown": "^0.22.3",
     "typescript": "^6.0.3"
   }
@@ -284,7 +286,7 @@ bunx kodeks changesets init
 This writes `.changeset/config.json` with two settings:
 
 - `"privatePackages": { "version": false, "tag": false }` keeps every private workspace package out of versioning, so there is no `ignore` list to maintain.
-- `"changelog": "@dirstack/kodeks/changesets-changelog"` writes changelog entries without commit hashes or pull request links, which would point at the private monorepo. With `--repo owner/name`, as in a public repository, each entry links to its commit instead. The changelog needs Node 22.12 or newer.
+- `"changelog": "@underpin/kodeks/changesets-changelog"` writes changelog entries without commit hashes or pull request links, which would point at the private monorepo. With `--repo owner/name`, as in a public repository, each entry links to its commit instead. The changelog needs Node 22.12 or newer.
 
 To release packages in lockstep, list them in `fixed` and set `"releaseTag": "version"` in `kodeks.release.json`, so they share one `v<version>` GitHub Release. To publish prereleases, run `bunx changeset pre enter beta` and commit `.changeset/pre.json`. Run `bunx changeset pre exit` to return to stable versions. These settings apply to every setup.
 
@@ -343,7 +345,7 @@ jobs:
       mirror-deploy-key: ${{ secrets.MIRROR_DEPLOY_KEY }}
 ```
 
-The sync workflow runs the `@dirstack/kodeks` range from the monorepo's root `package.json`, without installing the monorepo's dependencies. Inputs: `mirror-repository` (required), `mirror-branch` (default `main`), `kodeks-version`, `commit-message`, and `lockfile-command` (empty skips the lockfile refresh). The version workflow accepts `bun-version`, `bun-version-file`, `install-command`, `version-command` (default `bunx changeset version`) and `title`.
+The sync workflow runs the `@underpin/kodeks` range from the monorepo's root `package.json` (or the `@dirstack/kodeks` range, when only that name is listed), without installing the monorepo's dependencies. Inputs: `mirror-repository` (required), `mirror-branch` (default `main`), `kodeks-version`, `commit-message`, and `lockfile-command` (empty skips the lockfile refresh). The version workflow accepts `bun-version`, `bun-version-file`, `install-command`, `version-command` (default `bunx changeset version`) and `title`.
 
 GitHub starts no workflows for a pull request opened with the default `GITHUB_TOKEN`, so CI does not run on the "Version Packages" pull request. To run CI on it, pass a GitHub App token or a fine-grained token as the `github-token` secret of the version workflow.
 
