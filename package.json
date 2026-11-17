@@ -1,6 +1,6 @@
 {
   "name": "@underpin/config",
-  "version": "1.11.0",
+  "version": "1.12.0",
   "description": "Shared linter configurations and release tooling for TypeScript projects.",
   "homepage": "https://github.com/dirstack/kodeks#readme",
   "bugs": {
