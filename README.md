@@ -193,7 +193,7 @@ Both workflows accept `bun-version` or `bun-version-file` (such as `.bun-version
 
 To move an existing package over, set `version` in `package.json` to the version that is on npm now, so the first changeset bumps from there.
 
-Kodeks releases itself this way. Its `release.yml` calls the two workflows by path and passes `publish-command: node dist/cli/kodeks.js publish`, because `bunx kodeks` inside this repository would fetch the unrelated `kodeks` package from npm. To ship a change to Kodeks, add a changeset with `bunx changeset` in its pull request.
+Kodeks releases itself this way. Its `release.yml` calls the two workflows by path and passes `publish-command: node dist/cli/kodeks.js publish`, because `bunx kodeks` inside this repository would fetch the unrelated `kodeks` package from npm.
 
 ### Private monorepo through a public mirror
 
