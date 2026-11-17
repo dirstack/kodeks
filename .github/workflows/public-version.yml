@@ -24,7 +24,7 @@ on:
         type: string
         default: bun install --frozen-lockfile
       version-command:
-        description: Command that applies the pending changesets.
+        description: Command that applies the pending changesets. It runs without a shell, so put several commands in a package.json script.
         type: string
         default: bunx changeset version
       title:

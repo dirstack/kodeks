@@ -20,8 +20,8 @@ jobs:
       pull-requests: write
     uses: ./.github/workflows/public-version.yml
     with:
-      # The changelog module is this package's own build output.
-      version-command: bun run build && bunx changeset version
+      # The changelog module is this package's own build output, so the script builds first.
+      version-command: bun run version-packages
 
   release:
     if: github.ref == 'refs/heads/main'
