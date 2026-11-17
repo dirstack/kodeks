@@ -11,7 +11,7 @@ import {
 } from "node:fs/promises"
 import path from "node:path"
 import { runCommand } from "./command.ts"
-import { CONFIG_FILE, DEFAULT_PACKAGES_DIR } from "./config.ts"
+import { DEFAULT_PACKAGES_DIR, resolveConfigFile } from "./config.ts"
 import type { ReleaseConfig, ReleaseTag } from "./config.ts"
 import { formatJson, readJson } from "./json.ts"
 import type { PackageJson } from "./prepare-package.ts"
@@ -264,13 +264,16 @@ export async function syncPublic(options: SyncOptions): Promise<string[]> {
     ...(packagesDir === DEFAULT_PACKAGES_DIR ? {} : { packagesDir }),
     packages: publishPackages,
     // Mirrored packages always publish their built dist, so a build that skipped
-    // `kodeks prepare-package` fails the publish instead of shipping the source manifest.
+    // `underpin prepare-package` fails the publish instead of shipping the source manifest.
     publishDir: options.publishDir ?? "dist",
     ...(options.releaseTag ? { releaseTag: options.releaseTag } : {}),
   }
 
   await writeFile(path.join(target, ".gitignore"), DEFAULT_GITIGNORE, "utf8")
-  await writeFile(path.join(target, CONFIG_FILE), formatJson(mirrorConfig))
+  // A mirror that still has the legacy config file keeps its name.
+  const configFile = await resolveConfigFile(target)
+
+  await writeFile(path.join(target, configFile), formatJson(mirrorConfig))
 
   // Extras go last, so they can replace the generated .gitignore and config.
   for (const { source, destination } of extraFiles) {

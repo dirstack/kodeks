@@ -155,7 +155,7 @@ describe("syncPublic", () => {
       exclude: [],
     })
 
-    const config = JSON.parse(await readFile(path.join(target, "kodeks.release.json"), "utf8"))
+    const config = JSON.parse(await readFile(path.join(target, "underpin.release.json"), "utf8"))
 
     expect(config).toEqual({ packages: ["sdk"], publishDir: "dist", releaseTag: "version" })
     expect(await readFile(path.join(target, "LICENSE"), "utf8")).toBe("MIT\n")
@@ -164,14 +164,38 @@ describe("syncPublic", () => {
       ".gitignore",
       "LICENSE",
       "README.md",
-      "kodeks.release.json",
       "packages/sdk/.npmignore",
       "packages/sdk/LICENSE",
       "packages/sdk/package.json",
       "packages/sdk/src/index.ts",
       "packages/tsconfig/base.json",
       "packages/tsconfig/package.json",
+      "underpin.release.json",
     ])
+  })
+
+  it("should keep the legacy config file name of a mirror that has one", async () => {
+    const root = await createMonorepo()
+    const target = await mkdtemp(path.join(tmpdir(), "kodeks-mirror-"))
+    await writeTree(target, { "kodeks.release.json": "{}\n" })
+
+    await syncPublic({
+      root,
+      target,
+      packagesDir: "packages",
+      packages: ["sdk"],
+      extra: [],
+      exclude: [],
+    })
+
+    const files = await listTree(target)
+
+    expect(files).toContain("kodeks.release.json")
+    expect(files).not.toContain("underpin.release.json")
+    expect(JSON.parse(await readFile(path.join(target, "kodeks.release.json"), "utf8"))).toEqual({
+      packages: ["sdk"],
+      publishDir: "dist",
+    })
   })
 
   it("should replace only the listed packages and keep the mirror's other packages", async () => {

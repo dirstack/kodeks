@@ -1,5 +1,5 @@
 ---
-"@underpin/kodeks": minor
+"@underpin/config": minor
 ---
 
 `kodeks sync-public` now replaces only the package directories it lists. Other packages in the mirror stay, where it used to delete the mirror's whole `packages` directory. A package removed from the list now stays in the mirror until you delete it there.

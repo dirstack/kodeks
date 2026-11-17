@@ -7,7 +7,7 @@ interface InitOptions {
   repo?: string // GitHub repository, as `owner/name`, that changelog entries link to.
 }
 
-const CHANGELOG = "@underpin/kodeks/changesets-changelog"
+const CHANGELOG = "@underpin/config/changesets-changelog"
 
 // Changesets config has no `extends`, so this template is written into each repository.
 // `privatePackages` keeps every private workspace package out of versioning without a

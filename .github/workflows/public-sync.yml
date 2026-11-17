@@ -1,5 +1,5 @@
 # Reusable workflow that mirrors a private monorepo's public packages into a public
-# repository with `kodeks sync-public`. The monorepo's kodeks.release.json lists the
+# repository with `underpin sync-public`. The monorepo's underpin.release.json lists the
 # packages and root files. The mirror's own release workflow publishes what lands there.
 #
 # After the sync, the job refreshes the mirror's bun.lock without installing anything, so the
@@ -22,7 +22,7 @@ on:
         type: string
         default: main
       kodeks-version:
-        description: Version of kodeks to run. Empty reads the range from package.json.
+        description: Version of @underpin/config (or @dirstack/kodeks) to run. Empty reads the range from package.json.
         type: string
         default: ""
       commit-message:
@@ -62,16 +62,17 @@ jobs:
         with:
           node-version: 24
 
-      # Runs kodeks without installing the monorepo's dependencies. A monorepo that depends on
-      # @underpin/kodeks runs that package. One that still depends on @dirstack/kodeks, its
+      # Runs the CLI without installing the monorepo's dependencies. A monorepo that depends on
+      # @underpin/config runs that package. One that still depends on @dirstack/kodeks, its
       # earlier name, runs that one.
       - name: Sync packages into the mirror
         working-directory: monorepo
         env:
           KODEKS_VERSION: ${{ inputs.kodeks-version }}
         run: |
-          package=$(node -p "const p = require('./package.json'); const d = { ...p.dependencies, ...p.devDependencies }; d['@underpin/kodeks'] || !d['@dirstack/kodeks'] ? '@underpin/kodeks' : '@dirstack/kodeks'")
+          package=$(node -p "const p = require('./package.json'); const d = { ...p.dependencies, ...p.devDependencies }; d['@underpin/config'] || !d['@dirstack/kodeks'] ? '@underpin/config' : '@dirstack/kodeks'")
           version="${KODEKS_VERSION:-$(node -p "const p = require('./package.json'); p.devDependencies?.['$package'] ?? p.dependencies?.['$package'] ?? 'latest'")}"
+          # Both packages ship a `kodeks` bin. @underpin/config also names it `underpin`.
           npm exec --yes --package="$package@$version" -- kodeks sync-public --target "$GITHUB_WORKSPACE/mirror"
 
       - name: Setup Bun

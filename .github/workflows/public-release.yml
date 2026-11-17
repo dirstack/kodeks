@@ -1,6 +1,6 @@
 # Reusable workflow that runs in the repository that publishes: a single-package repository,
 # a public monorepo, or the public mirror of a private monorepo. It builds the packages and
-# runs `kodeks publish`, which publishes every version not yet on npm and cuts one GitHub
+# runs `underpin publish`, which publishes every version not yet on npm and cuts one GitHub
 # Release per new version.
 #
 # Auth is npm trusted publishing (OIDC), so there is no NPM_TOKEN. npm validates the
@@ -33,9 +33,9 @@ on:
         type: string
         default: bun run build
       publish-command:
-        description: Command that runs `kodeks publish`.
+        description: Command that runs `underpin publish`. `bun run` only runs a locally installed bin, so it never fetches a package of that name from npm.
         type: string
-        default: bunx kodeks publish
+        default: bun run underpin publish
 
 jobs:
   release:

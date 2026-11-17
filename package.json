@@ -1,5 +1,5 @@
 {
-  "name": "@underpin/kodeks",
+  "name": "@underpin/config",
   "version": "1.11.0",
   "description": "Shared linter configurations and release tooling for TypeScript projects.",
   "homepage": "https://github.com/dirstack/kodeks#readme",
@@ -13,7 +13,8 @@
     "url": "https://github.com/dirstack/kodeks"
   },
   "bin": {
-    "kodeks": "./dist/cli/kodeks.js"
+    "kodeks": "./dist/cli/underpin.js",
+    "underpin": "./dist/cli/underpin.js"
   },
   "files": [
     "configs",

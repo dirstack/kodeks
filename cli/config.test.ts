@@ -1,5 +1,8 @@
 import { describe, expect, it } from "bun:test"
-import { parseList, parseReleaseConfig } from "./config.ts"
+import { mkdtemp, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import path from "node:path"
+import { loadReleaseConfig, parseList, parseReleaseConfig, resolveConfigFile } from "./config.ts"
 
 describe("parseReleaseConfig", () => {
   it("should accept a full config", () => {
@@ -13,7 +16,7 @@ describe("parseReleaseConfig", () => {
 
   it("should reject packages given as a string", () => {
     expect(() => parseReleaseConfig({ packages: "sdk" })).toThrow(
-      'kodeks.release.json: "packages" must be an array of strings.',
+      'underpin.release.json: "packages" must be an array of strings.',
     )
   })
 
@@ -38,5 +41,54 @@ describe("parseList", () => {
 
   it("should return undefined when the option is missing", () => {
     expect(parseList(undefined)).toBeUndefined()
+  })
+})
+
+describe("loadReleaseConfig", () => {
+  async function createRoot(files: Record<string, string>) {
+    const root = await mkdtemp(path.join(tmpdir(), "underpin-config-"))
+
+    for (const [file, content] of Object.entries(files)) {
+      await writeFile(path.join(root, file), content)
+    }
+
+    return root
+  }
+
+  it("should read underpin.release.json", async () => {
+    const root = await createRoot({ "underpin.release.json": '{ "packages": ["sdk"] }' })
+
+    expect(await loadReleaseConfig(root)).toEqual({ packages: ["sdk"] })
+  })
+
+  it("should fall back to the legacy kodeks.release.json", async () => {
+    const root = await createRoot({ "kodeks.release.json": '{ "packages": ["legacy"] }' })
+
+    expect(await resolveConfigFile(root)).toBe("kodeks.release.json")
+    expect(await loadReleaseConfig(root)).toEqual({ packages: ["legacy"] })
+  })
+
+  it("should prefer underpin.release.json when both files exist", async () => {
+    const root = await createRoot({
+      "underpin.release.json": '{ "packages": ["sdk"] }',
+      "kodeks.release.json": '{ "packages": ["legacy"] }',
+    })
+
+    expect(await loadReleaseConfig(root)).toEqual({ packages: ["sdk"] })
+  })
+
+  it("should name the legacy file in a validation error", async () => {
+    const root = await createRoot({ "kodeks.release.json": '{ "packages": "sdk" }' })
+
+    await expect(loadReleaseConfig(root)).rejects.toThrow(
+      'kodeks.release.json: "packages" must be an array of strings.',
+    )
+  })
+
+  it("should return an empty config without either file", async () => {
+    const root = await createRoot({})
+
+    expect(await resolveConfigFile(root)).toBe("underpin.release.json")
+    expect(await loadReleaseConfig(root)).toEqual({})
   })
 })
