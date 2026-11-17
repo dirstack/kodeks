@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test"
-import { mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readdir, readFile, symlink, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 import { runCommand } from "./command.ts"
@@ -198,6 +198,26 @@ describe("syncPublic", () => {
     expect(files).toContain("packages/sdk/src/index.ts")
     expect(files).toContain("packages/utils/package.json")
     expect(files).toContain("packages/utils/src/index.ts")
+  })
+
+  it("should refuse a symlinked packages directory in the target", async () => {
+    const root = await createMonorepo()
+    const target = await mkdtemp(path.join(tmpdir(), "kodeks-mirror-"))
+    const outside = await mkdtemp(path.join(tmpdir(), "kodeks-outside-"))
+    await writeTree(outside, { "sdk/keep.ts": "outside\n" })
+    await symlink(outside, path.join(target, "packages"))
+
+    await expect(
+      syncPublic({
+        root,
+        target,
+        packagesDir: "packages",
+        packages: ["sdk"],
+        extra: [],
+        exclude: [],
+      }),
+    ).rejects.toThrow("packages in the target is a symlink")
+    expect(await readFile(path.join(outside, "sdk/keep.ts"), "utf8")).toBe("outside\n")
   })
 
   it("should leave every root file alone with packagesOnly", async () => {
