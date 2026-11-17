@@ -27,6 +27,7 @@ interface SyncOptions {
   packagesDir: string
   packages: string[] // Package directories to mirror.
   publishPackages?: string[] // Package directories the mirror publishes. Defaults to the public ones.
+  publishDir?: string
   releaseTag?: ReleaseTag
   licenseFrom?: string
   extra: ExtraFile[]
@@ -227,6 +228,9 @@ export async function syncPublic(options: SyncOptions): Promise<string[]> {
   const mirrorConfig: ReleaseConfig = {
     ...(packagesDir === DEFAULT_PACKAGES_DIR ? {} : { packagesDir }),
     packages: publishPackages,
+    // Mirrored packages always publish their built dist, so a build that skipped
+    // `kodeks prepare-package` fails the publish instead of shipping the source manifest.
+    publishDir: options.publishDir ?? "dist",
     ...(options.releaseTag ? { releaseTag: options.releaseTag } : {}),
   }
 

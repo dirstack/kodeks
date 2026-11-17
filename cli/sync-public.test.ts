@@ -157,7 +157,7 @@ describe("syncPublic", () => {
 
     const config = JSON.parse(await readFile(path.join(target, "kodeks.release.json"), "utf8"))
 
-    expect(config).toEqual({ packages: ["sdk"], releaseTag: "version" })
+    expect(config).toEqual({ packages: ["sdk"], publishDir: "dist", releaseTag: "version" })
     expect(await readFile(path.join(target, "LICENSE"), "utf8")).toBe("MIT\n")
     expect(await readFile(path.join(target, "README.md"), "utf8")).toBe("# Acme\n")
     expect(await listTree(target)).toEqual([

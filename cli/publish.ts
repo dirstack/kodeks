@@ -1,3 +1,4 @@
+import { access, readFile } from "node:fs/promises"
 import path from "node:path"
 import { runCommand } from "./command.ts"
 import type { ReleaseTag } from "./config.ts"
@@ -13,9 +14,10 @@ import { readJson } from "./json.ts"
 import type { PackageJson } from "./prepare-package.ts"
 
 export interface PublishTarget {
-  directory: string // The built `dist` directory that gets published.
+  directory: string // The directory that gets published, the built `dist` or the package itself.
   name: string
   version: string
+  changelog?: string // This version's section of the package's CHANGELOG.md.
 }
 
 export interface PublishDecision extends PublishTarget {
@@ -43,6 +45,7 @@ interface PublishOptions {
   root: string
   packagesDir: string
   packages: string[]
+  publishDir?: string
   releaseTag?: ReleaseTag
   dryRun: boolean
   registry?: Registry
@@ -88,15 +91,59 @@ export function getDistTag(version: string, latestVersion?: string): string {
   return /^\d*$/.test(identifier) ? "next" : identifier
 }
 
-async function readPublishTargets(
+// Returns the body under a `## <version>` heading, as Changesets writes it, up to the next
+// heading of the same level. Returns undefined when the changelog has no such section.
+export function getChangelogSection(changelog: string, version: string): string | undefined {
+  const lines = changelog.split("\n")
+  const heading = /^##\s+\[?v?([^\s\]]+)\]?/
+  const start = lines.findIndex(line => heading.exec(line)?.[1] === version)
+
+  if (start === -1) return
+
+  const end = lines.findIndex((line, index) => index > start && /^##?\s/.test(line))
+  const section = lines
+    .slice(start + 1, end === -1 ? undefined : end)
+    .join("\n")
+    .trim()
+
+  return section || undefined
+}
+
+async function exists(file: string): Promise<boolean> {
+  return access(file).then(
+    () => true,
+    () => false,
+  )
+}
+
+// Without a configured publishDir, a package publishes from `dist` when the build wrote a
+// manifest there (`kodeks prepare-package`), and from its own directory otherwise.
+async function resolvePublishDirectory(packageDirectory: string, publishDir?: string) {
+  if (publishDir !== undefined) return path.join(packageDirectory, publishDir)
+
+  const distDirectory = path.join(packageDirectory, "dist")
+  return (await exists(path.join(distDirectory, "package.json"))) ? distDirectory : packageDirectory
+}
+
+async function readChangelog(packageDirectory: string, version: string) {
+  const changelog = await readFile(path.join(packageDirectory, "CHANGELOG.md"), "utf8").catch(
+    () => undefined,
+  )
+
+  return changelog === undefined ? undefined : getChangelogSection(changelog, version)
+}
+
+export async function readPublishTargets(
   root: string,
   packagesDir: string,
   packages: string[],
+  publishDir?: string,
 ): Promise<PublishTarget[]> {
   const targets: PublishTarget[] = []
 
   for (const packageName of packages) {
-    const directory = path.join(root, packagesDir, packageName, "dist")
+    const packageDirectory = path.join(root, packagesDir, packageName)
+    const directory = await resolvePublishDirectory(packageDirectory, publishDir)
     const manifestPath = path.join(directory, "package.json")
     let manifest: PackageJson
 
@@ -110,7 +157,13 @@ async function readPublishTargets(
       throw new Error(`${path.relative(root, manifestPath)} has no name or version.`)
     }
 
-    targets.push({ directory, name: manifest.name, version: manifest.version })
+    if (manifest.private) {
+      throw new Error(`${path.relative(root, manifestPath)} is private and cannot be published.`)
+    }
+
+    const changelog = await readChangelog(packageDirectory, manifest.version)
+
+    targets.push({ directory, name: manifest.name, version: manifest.version, changelog })
   }
 
   return targets
@@ -132,6 +185,23 @@ export async function planPublish(
   return decisions
 }
 
+// Each package's changelog section, or a plain list of the released packages when no
+// changelog has one. Several packages get a heading each.
+export function getReleaseNotes(targets: PublishTarget[]): string {
+  if (!targets.some(target => target.changelog)) {
+    return targets.map(target => `- ${target.name}@${target.version}\n`).join("")
+  }
+
+  if (targets.length === 1) return `${targets[0]?.changelog ?? ""}\n`
+
+  return targets
+    .map(
+      target =>
+        `## ${target.name}@${target.version}\n\n${target.changelog ?? "No changes listed."}\n`,
+    )
+    .join("\n")
+}
+
 export function getDefaultReleaseTag(packages: string[]): ReleaseTag {
   return packages.length === 1 ? "version" : "package"
 }
@@ -145,7 +215,7 @@ export function getReleases<T extends PublishTarget>(
   if (releaseTag === "package") {
     return targets.map(target => ({
       tag: `${target.name}@${target.version}`,
-      notes: `- ${target.name}@${target.version}\n`,
+      notes: getReleaseNotes([target]),
       prerelease: target.version.includes("-"),
       targets: [target],
     }))
@@ -165,7 +235,7 @@ export function getReleases<T extends PublishTarget>(
   return [
     {
       tag: `v${version}`,
-      notes: targets.map(target => `- ${target.name}@${target.version}\n`).join(""),
+      notes: getReleaseNotes(targets),
       prerelease: version.includes("-"),
       targets,
     },
@@ -246,9 +316,9 @@ function getHeadCommit(root: string): string {
 }
 
 export async function publish(options: PublishOptions): Promise<void> {
-  const { root, packagesDir, packages, dryRun, registry = npmRegistry } = options
+  const { root, packagesDir, packages, publishDir, dryRun, registry = npmRegistry } = options
   const releaseTag = options.releaseTag ?? getDefaultReleaseTag(packages)
-  const targets = await readPublishTargets(root, packagesDir, packages)
+  const targets = await readPublishTargets(root, packagesDir, packages, publishDir)
 
   // Checked before publishing, so a version mismatch fails the run before anything reaches npm.
   getReleases(targets, releaseTag)

@@ -1,13 +1,49 @@
 import { describe, expect, it } from "bun:test"
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import path from "node:path"
 import type { PublishDecision, PublishTarget, Registry, ReleaseSources } from "./publish.ts"
 import {
   findReleaseCommit,
+  getChangelogSection,
   getDefaultReleaseTag,
   getDistTag,
+  getReleaseNotes,
   getReleases,
   isVersionAtLeast,
   planPublish,
+  readPublishTargets,
 } from "./publish.ts"
+
+async function createRepository(files: Record<string, string>) {
+  const root = await mkdtemp(path.join(tmpdir(), "kodeks-publish-"))
+
+  for (const [file, content] of Object.entries(files)) {
+    await mkdir(path.dirname(path.join(root, file)), { recursive: true })
+    await writeFile(path.join(root, file), content)
+  }
+
+  return root
+}
+
+function manifest(name: string, version: string, extra = {}) {
+  return JSON.stringify({ name, version, ...extra })
+}
+
+const CHANGELOG = `# @acme/sdk
+
+## 1.3.0
+
+### Minor Changes
+
+- Add a tierId placement option.
+
+## 1.2.0
+
+### Patch Changes
+
+- Fix tracking.
+`
 
 function createRegistry(
   published: string[],
@@ -257,5 +293,100 @@ describe("findReleaseCommit", () => {
     const sources = createSources(registry, ["abc1234", "def5678"])
 
     expect(await findReleaseCommit(release!, sources)).toBeUndefined()
+  })
+})
+
+describe("getChangelogSection", () => {
+  it("should return the body of the version's section", () => {
+    expect(getChangelogSection(CHANGELOG, "1.3.0")).toBe(
+      "### Minor Changes\n\n- Add a tierId placement option.",
+    )
+  })
+
+  it("should read the last section up to the end of the file", () => {
+    expect(getChangelogSection(CHANGELOG, "1.2.0")).toBe("### Patch Changes\n\n- Fix tracking.")
+  })
+
+  it("should match a linked heading with a date", () => {
+    const changelog = "## [2.0.0](https://example.com/compare) (2026-11-17)\n\n- Drop Node 20.\n"
+
+    expect(getChangelogSection(changelog, "2.0.0")).toBe("- Drop Node 20.")
+  })
+
+  it("should not match a version that only shares a prefix", () => {
+    expect(getChangelogSection(CHANGELOG, "1.3")).toBeUndefined()
+  })
+
+  it("should return undefined for a version without a section", () => {
+    expect(getChangelogSection(CHANGELOG, "9.9.9")).toBeUndefined()
+  })
+})
+
+describe("getReleaseNotes", () => {
+  it("should use the changelog section of a single package", () => {
+    const notes = getReleaseNotes([{ ...targets[1]!, changelog: "- Fix tracking." }])
+
+    expect(notes).toBe("- Fix tracking.\n")
+  })
+
+  it("should give each package a heading when several are released", () => {
+    const notes = getReleaseNotes([{ ...targets[0]!, changelog: "- Faster embeds." }, targets[1]!])
+
+    expect(notes).toBe(
+      "## @acme/embeds@1.2.0\n\n- Faster embeds.\n\n## @acme/sdk@1.2.0\n\nNo changes listed.\n",
+    )
+  })
+
+  it("should list the packages when no changelog has a section", () => {
+    expect(getReleaseNotes(targets)).toBe("- @acme/embeds@1.2.0\n- @acme/sdk@1.2.0\n")
+  })
+})
+
+describe("readPublishTargets", () => {
+  it("should publish a package from dist when the build wrote a manifest there", async () => {
+    const root = await createRepository({
+      "packages/sdk/package.json": manifest("@acme/sdk", "1.3.0"),
+      "packages/sdk/dist/package.json": manifest("@acme/sdk", "1.3.0"),
+      "packages/sdk/CHANGELOG.md": CHANGELOG,
+    })
+    const [target] = await readPublishTargets(root, "packages", ["sdk"])
+
+    expect(target?.directory).toBe(path.join(root, "packages/sdk/dist"))
+    expect(target?.changelog).toBe("### Minor Changes\n\n- Add a tierId placement option.")
+  })
+
+  it("should publish a root package from the repository itself", async () => {
+    const root = await createRepository({
+      "package.json": manifest("@acme/utils", "3.4.0", { files: ["dist"] }),
+      "dist/index.js": "built\n",
+    })
+    const [target] = await readPublishTargets(root, ".", ["."])
+
+    expect(target).toEqual({
+      directory: root,
+      name: "@acme/utils",
+      version: "3.4.0",
+      changelog: undefined,
+    })
+  })
+
+  it("should publish from the configured directory", async () => {
+    const root = await createRepository({
+      "packages/sdk/package.json": manifest("@acme/sdk", "1.3.0"),
+      "packages/sdk/dist/package.json": manifest("@acme/sdk", "1.3.0"),
+    })
+    const [target] = await readPublishTargets(root, "packages", ["sdk"], ".")
+
+    expect(target?.directory).toBe(path.join(root, "packages/sdk"))
+  })
+
+  it("should refuse a private package", async () => {
+    const root = await createRepository({
+      "package.json": manifest("acme", "1.0.0", { private: true }),
+    })
+
+    await expect(readPublishTargets(root, ".", ["."])).rejects.toThrow(
+      "package.json is private and cannot be published.",
+    )
   })
 })
