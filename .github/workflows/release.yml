@@ -1,35 +1,37 @@
 name: Release
 
+# Kodeks releases itself with its own workflows. Pending changesets open or update the
+# "Version Packages" pull request, and merging it publishes the new version. The workflows are
+# called by path, so a release always runs the workflow files of the commit being released.
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
-  release:
+  version:
+    # A manual run can target any branch, so only main may version or publish.
+    if: github.ref == 'refs/heads/main'
     permissions:
       contents: write
-      issues: write
       pull-requests: write
+    uses: ./.github/workflows/public-version.yml
+    with:
+      # The changelog module is this package's own build output.
+      version-command: bun run build && bunx changeset version
+
+  release:
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
       id-token: write
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
-        with:
-          node-version: 24
-          registry-url: https://registry.npmjs.org
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Release and publish package
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bunx semantic-release --extends ./release.json
+    uses: ./.github/workflows/public-release.yml
+    with:
+      # CI does not run on the "Version Packages" pull request, so check again before publishing.
+      build-command: bun run lint && bun run format:check && bun run typecheck && bun run test && bun run build
+      # `bunx kodeks` would resolve the unrelated `kodeks` package on npm, not this repository.
+      publish-command: node dist/cli/kodeks.js publish

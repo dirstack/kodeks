@@ -174,21 +174,26 @@ concurrency:
 
 jobs:
   version:
+    # A manual run can target any branch, so only main may version or publish.
+    if: github.ref == 'refs/heads/main'
     permissions:
       contents: write
       pull-requests: write
     uses: dirstack/kodeks/.github/workflows/public-version.yml@<release commit SHA> # v<version>
 
   release:
+    if: github.ref == 'refs/heads/main'
     permissions:
       contents: write
       id-token: write
     uses: dirstack/kodeks/.github/workflows/public-release.yml@<release commit SHA> # v<version>
 ```
 
-Both workflows accept `bun-version` or `bun-version-file` (such as `.bun-version`), and `install-command`. The release workflow also accepts `build-command`. Set up [trusted publishing](#trusted-publishing-on-npmjscom) with `release.yml` as the workflow filename.
+Both workflows accept `bun-version` or `bun-version-file` (such as `.bun-version`), and `install-command`. The release workflow also accepts `build-command` and `publish-command` (default `bunx kodeks publish`). Set up [trusted publishing](#trusted-publishing-on-npmjscom) with `release.yml` as the workflow filename.
 
 To move an existing package over, set `version` in `package.json` to the version that is on npm now, so the first changeset bumps from there.
+
+Kodeks releases itself this way. Its `release.yml` calls the two workflows by path and passes `publish-command: node dist/cli/kodeks.js publish`, because `bunx kodeks` inside this repository would fetch the unrelated `kodeks` package from npm. To ship a change to Kodeks, add a changeset with `bunx changeset` in its pull request.
 
 ### Private monorepo through a public mirror
 
@@ -364,7 +369,7 @@ jobs:
     uses: dirstack/kodeks/.github/workflows/public-release.yml@<release commit SHA> # v<version>
 ```
 
-The release workflow installs npm 11 (input `npm-version`), runs `install-command` (default `bun install --frozen-lockfile`) and `build-command` (default `bun run build`), then runs `kodeks publish`. Commit this file to the mirror once, by hand.
+The release workflow installs npm 11 (input `npm-version`), runs `install-command` (default `bun install --frozen-lockfile`) and `build-command` (default `bun run build`), then runs `publish-command` (default `bunx kodeks publish`). Commit this file to the mirror once, by hand.
 
 Pin each `uses:` to the commit SHA of a kodeks release, with the version in a comment, never to the tag: the sync receives the mirror's deploy key and the release holds `id-token: write`, so a moved tag could push to the mirror or publish to npm. Every action inside these workflows is pinned to a commit SHA as well, so the monorepo and the mirror can turn on *Require actions to be pinned to a full-length commit SHA* (Settings, Actions, General).
 
