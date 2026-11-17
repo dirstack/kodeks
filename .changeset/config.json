@@ -16,5 +16,13 @@
   "privatePackages": {
     "version": false,
     "tag": false
-  }
+  },
+  "changedFilePatterns": [
+    "cli/**",
+    "configs/**",
+    "skills/**",
+    ".github/workflows/public-*.yml",
+    "package.json",
+    "!**/*.test.ts"
+  ]
 }
