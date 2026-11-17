@@ -113,11 +113,13 @@ Options:
   },
 
   "sync-public": {
-    usage: `Usage: kodeks sync-public --target <dir> [--packages <list>] [--license-from <path>] [--extra <path>...]
+    usage: `Usage: kodeks sync-public --target <dir> [--packages <list>] [--license-from <path>] [--extra <path>...] [--packages-only]
 
-Mirrors packages from this monorepo into a checkout of the public repository. The target's
-<packagesDir> is replaced. Files git ignores, and dist, node_modules and .turbo, are skipped.
-A .gitignore and a ${CONFIG_FILE} listing the packages to publish are written to the target root.
+Mirrors packages from this monorepo into a checkout of the public repository. Each listed
+package directory in the target is replaced, and every other package in the target stays.
+Files git ignores, and dist, node_modules and .turbo, are skipped. A .gitignore and a
+${CONFIG_FILE} listing the packages to publish are written to the target root, unless
+--packages-only is set.
 
 Options:
   --target <dir>         Checkout of the public mirror (required)
@@ -126,6 +128,8 @@ Options:
   --license-from <path>  File copied to the mirror's LICENSE (default: "sync.licenseFrom")
   --extra <path>         File or directory copied into the mirror, as "source" or
                          "source:destination". Repeatable, added to "sync.extra".
+  --packages-only        Write only the package directories and leave the target's root files
+                         alone, for a mirror that owns them (default: "sync.packagesOnly")
   -h, --help             Show this help
 `,
     async run(args) {
@@ -137,6 +141,7 @@ Options:
           packages: { type: "string" },
           "license-from": { type: "string" },
           extra: { type: "string", multiple: true },
+          "packages-only": { type: "boolean" },
         },
       })
 
@@ -158,6 +163,7 @@ Options:
         licenseFrom: values["license-from"] ?? sync.licenseFrom,
         extra: [...(sync.extra ?? []), ...(values.extra ?? [])].map(parseExtra),
         exclude: sync.exclude ?? [],
+        packagesOnly: values["packages-only"] ?? sync.packagesOnly ?? false,
       })
 
       console.log(`Mirrored ${files.length} files into ${values.target}. Review, then commit.`)

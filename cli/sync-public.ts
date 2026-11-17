@@ -32,6 +32,7 @@ interface SyncOptions {
   licenseFrom?: string
   extra: ExtraFile[]
   exclude: string[]
+  packagesOnly?: boolean // Writes only the listed package directories, never a root file.
 }
 
 // Build output and caches never reach the mirror.
@@ -200,7 +201,14 @@ export async function syncPublic(options: SyncOptions): Promise<string[]> {
   if (isInside(target, root)) throw new Error("The target must not contain the monorepo.")
   if (!packages.length) throw new Error("No packages to sync. Pass --packages.")
 
-  // The package tree is deleted and rewritten, so it must be a real subdirectory of the target.
+  if (options.packagesOnly && (options.licenseFrom || options.extra.length)) {
+    throw new Error(
+      "packagesOnly leaves the mirror's root files alone, so drop licenseFrom and extra.",
+    )
+  }
+
+  // Each listed package directory is deleted and rewritten, so it must be a real subdirectory
+  // of the target.
   for (const subpath of [packagesDir, ...packages]) {
     if (!isSubdirectory(subpath)) throw new Error(`"${subpath}" must be a subdirectory path.`)
   }
@@ -209,13 +217,20 @@ export async function syncPublic(options: SyncOptions): Promise<string[]> {
   const files = await listSyncFiles(root, packagesDir, packages, exclude)
   const extraFiles = await listExtraFiles(root, options.extra, exclude)
 
-  // Replace the mirrored package tree. The mirror's .git and other root files stay.
-  await rm(path.join(target, packagesDir), { recursive: true, force: true })
+  // Replace each listed package directory. Packages the mirror holds that are not listed, its
+  // .git and its other root files stay.
+  for (const packageName of packages) {
+    await rm(path.join(target, packagesDir, packageName), { recursive: true, force: true })
+  }
+
   await mkdir(path.join(target, packagesDir), { recursive: true })
 
   for (const file of files) {
     await copyEntry(path.join(root, file), path.join(target, file))
   }
+
+  // The mirror owns its root files, its publish config included.
+  if (options.packagesOnly) return files
 
   if (options.licenseFrom) {
     await copyFile(path.join(root, options.licenseFrom), path.join(target, "LICENSE"))
