@@ -1,4 +1,4 @@
-# @dirstack/kodeks
+# @underpin/kodeks
 
 ## 1.11.0
 

@@ -1,5 +1,5 @@
 {
-  "name": "@dirstack/kodeks",
+  "name": "@underpin/kodeks",
   "version": "1.11.0",
   "description": "Shared linter configurations and release tooling for TypeScript projects.",
   "homepage": "https://github.com/dirstack/kodeks#readme",
