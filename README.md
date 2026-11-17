@@ -247,6 +247,7 @@ Create a `kodeks.release.json` in the repository root. The commands read their d
 | `sync.licenseFrom` | | File copied to the mirror's root `LICENSE`. |
 | `sync.extra` | | Files or directories copied into the mirror, as `"source"` (same path) or `"source:destination"`. A directory merges into the destination. Files git ignores inside a directory are skipped, and an extra file that git ignores is an error. |
 | `sync.exclude` | | Names skipped at any depth, on top of `dist`, `node_modules` and `.turbo`. |
+| `sync.packagesOnly` | `false` | Writes only the listed package directories and leaves every root file in the mirror alone: no `.gitignore`, `kodeks.release.json`, `LICENSE` or extras. Use it for a public monorepo that owns its root files and holds packages of its own next to the mirrored ones. It cannot be combined with `sync.licenseFrom` or `sync.extra`. |
 
 Keep the mirror's root files in the monorepo and list them in `sync.extra`. In the example above, `scripts/mirror/root/` holds the mirror's `README.md` and `package.json`. The mirror's `package.json` builds the public packages and needs Kodeks:
 
@@ -268,7 +269,7 @@ Keep the mirror's root files in the monorepo and list them in `sync.extra`. In t
 }
 ```
 
-On every sync, `kodeks sync-public` replaces the mirror's `packages` directory with the package files git does not ignore, so a local `.env` never reaches the mirror. It only runs in a git repository, and stops with an error when `git ls-files` fails. It also writes a `.gitignore` and a `kodeks.release.json` that only holds the packages to publish, `publishDir` and the `releaseTag`. The mirror's `publishDir` is `"dist"`, so a build that skipped `kodeks prepare-package` fails the publish instead of shipping the source manifest. Extras are copied last, so an extra can replace either generated file. Root files that were removed from the monorepo stay in the mirror until you delete them there.
+On every sync, `kodeks sync-public` replaces each listed package directory in the mirror with the package files git does not ignore, so a local `.env` never reaches the mirror. Packages the mirror holds that are not listed stay, so a package removed from the list stays in the mirror until you delete it there. It only runs in a git repository, and stops with an error when `git ls-files` fails. Unless `sync.packagesOnly` is set, it also writes a `.gitignore` and a `kodeks.release.json` that only holds the packages to publish, `publishDir` and the `releaseTag`. The mirror's `publishDir` is `"dist"`, so a build that skipped `kodeks prepare-package` fails the publish instead of shipping the source manifest. Extras are copied last, so an extra can replace either generated file. Root files that were removed from the monorepo stay in the mirror until you delete them there.
 
 The mirror keeps its own `bun.lock`, because the monorepo's lockfile describes private packages. The sync workflow refreshes it after each sync with `bun install --lockfile-only --ignore-scripts`, which resolves only what changed and installs nothing. The release then installs with `--frozen-lockfile`, so every publish builds with the versions committed in the mirror. After a local `kodeks sync-public`, run that same command in the mirror before you commit.
 
@@ -397,7 +398,7 @@ The sync job pushes to the mirror with a deploy key. A push made with a deploy k
 ```bash
 kodeks prepare-package [dir]
 kodeks publish [--packages a,b] [--publish-dir <dir>] [--dry-run]
-kodeks sync-public --target <dir> [--packages <list>] [--license-from <path>] [--extra <path>...]
+kodeks sync-public --target <dir> [--packages <list>] [--license-from <path>] [--extra <path>...] [--packages-only]
 kodeks changesets init [--repo <owner/name>] [--force]
 ```
 
