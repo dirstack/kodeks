@@ -6,6 +6,7 @@ interface SyncConfig {
   licenseFrom?: string // File copied to the mirror's root LICENSE.
   extra?: string[] // Extra files or directories, as `source` or `source:destination`.
   exclude?: string[] // File or directory names skipped at any depth, on top of the defaults.
+  packagesOnly?: boolean // Writes only the package directories and leaves the mirror's root files alone.
 }
 
 // `version` tags one `v<version>` release for packages released in lockstep. `package` tags
@@ -71,6 +72,11 @@ export function parseReleaseConfig(raw: unknown): ReleaseConfig {
       sync.exclude === undefined || isStringArray(sync.exclude),
       "sync.exclude",
       "an array of strings",
+    )
+    assertField(
+      sync.packagesOnly === undefined || typeof sync.packagesOnly === "boolean",
+      "sync.packagesOnly",
+      "a boolean",
     )
   }
 

@@ -17,6 +17,15 @@ describe("parseReleaseConfig", () => {
     )
   })
 
+  it("should accept packagesOnly and reject a non-boolean value", () => {
+    const config = { packages: ["ui"], sync: { packagesOnly: true } }
+
+    expect(parseReleaseConfig(config)).toEqual(config)
+    expect(() => parseReleaseConfig({ sync: { packagesOnly: "yes" } })).toThrow(
+      '"sync.packagesOnly" must be a boolean',
+    )
+  })
+
   it("should reject a non-object root", () => {
     expect(() => parseReleaseConfig(["sdk"])).toThrow('"root" must be an object')
   })

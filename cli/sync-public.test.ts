@@ -142,7 +142,7 @@ describe("syncPublic", () => {
   it("should mirror packages, root files and the publish config, but no ignored file", async () => {
     const root = await createMonorepo()
     const target = await mkdtemp(path.join(tmpdir(), "kodeks-mirror-"))
-    await writeTree(target, { "packages/removed/index.ts": "stale\n" })
+    await writeTree(target, { "packages/sdk/src/removed.ts": "stale\n" })
 
     await syncPublic({
       root,
@@ -172,6 +172,96 @@ describe("syncPublic", () => {
       "packages/tsconfig/base.json",
       "packages/tsconfig/package.json",
     ])
+  })
+
+  it("should replace only the listed packages and keep the mirror's other packages", async () => {
+    const root = await createMonorepo()
+    const target = await mkdtemp(path.join(tmpdir(), "kodeks-mirror-"))
+    await writeTree(target, {
+      "packages/sdk/src/removed.ts": "stale\n",
+      "packages/utils/package.json": "{}\n",
+      "packages/utils/src/index.ts": "export {}\n",
+    })
+
+    await syncPublic({
+      root,
+      target,
+      packagesDir: "packages",
+      packages: ["sdk"],
+      extra: [],
+      exclude: [],
+    })
+
+    const files = await listTree(target)
+
+    expect(files).not.toContain("packages/sdk/src/removed.ts")
+    expect(files).toContain("packages/sdk/src/index.ts")
+    expect(files).toContain("packages/utils/package.json")
+    expect(files).toContain("packages/utils/src/index.ts")
+  })
+
+  it("should leave every root file alone with packagesOnly", async () => {
+    const root = await createMonorepo()
+    const target = await mkdtemp(path.join(tmpdir(), "kodeks-mirror-"))
+    const rootFiles = {
+      ".gitignore": "node_modules\n.env\n",
+      "kodeks.release.json": '{ "packages": ["ui", "utils"] }\n',
+      LICENSE: "Mirror license\n",
+      "README.md": "# Mirror\n",
+      "package.json": '{ "name": "mirror" }\n',
+      "packages/utils/package.json": "{}\n",
+    }
+    await writeTree(target, rootFiles)
+
+    await syncPublic({
+      root,
+      target,
+      packagesDir: "packages",
+      packages: ["sdk"],
+      extra: [],
+      exclude: [],
+      packagesOnly: true,
+    })
+
+    for (const [file, content] of Object.entries(rootFiles)) {
+      expect(await readFile(path.join(target, file), "utf8")).toBe(content)
+    }
+
+    expect(await listTree(target)).toEqual([
+      ".gitignore",
+      "LICENSE",
+      "README.md",
+      "kodeks.release.json",
+      "package.json",
+      "packages/sdk/.npmignore",
+      "packages/sdk/LICENSE",
+      "packages/sdk/package.json",
+      "packages/sdk/src/index.ts",
+      "packages/utils/package.json",
+    ])
+  })
+
+  it.each([
+    { licenseFrom: "packages/sdk/LICENSE", extra: [] },
+    { extra: [parseExtra("mirror:.")] },
+  ])("should refuse root files with packagesOnly", async ({ licenseFrom, extra }) => {
+    const root = await createMonorepo()
+    const target = await mkdtemp(path.join(tmpdir(), "kodeks-mirror-"))
+    await writeTree(target, { "packages/sdk/package.json": "{}\n" })
+
+    await expect(
+      syncPublic({
+        root,
+        target,
+        packagesDir: "packages",
+        packages: ["sdk"],
+        licenseFrom,
+        extra: [...extra],
+        exclude: [],
+        packagesOnly: true,
+      }),
+    ).rejects.toThrow("packagesOnly leaves the mirror's root files alone")
+    expect(await readFile(path.join(target, "packages/sdk/package.json"), "utf8")).toBe("{}\n")
   })
 
   it.each([".", "..", "packages/.."])(
