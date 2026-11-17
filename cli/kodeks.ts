@@ -3,6 +3,8 @@ import path from "node:path"
 import { parseArgs } from "node:util"
 import { initChangesets } from "./changesets.ts"
 import { CONFIG_FILE, DEFAULT_PACKAGES_DIR, loadReleaseConfig, parseList } from "./config.ts"
+import { readJson } from "./json.ts"
+import type { PackageJson } from "./prepare-package.ts"
 import { preparePackage } from "./prepare-package.ts"
 import { publish } from "./publish.ts"
 import { parseExtra, syncPublic } from "./sync-public.ts"
@@ -18,7 +20,7 @@ Commands:
   prepare-package [dir]   Write the publishable dist/package.json for a package
   publish                 Publish built packages to npm and cut GitHub Releases
   sync-public             Mirror packages from a monorepo into a public repository
-  changesets init         Write a Changesets config for publishing from a mirror
+  changesets init         Write a Changesets config
 
 Options:
   -h, --help              Show help for kodeks or a command
@@ -47,22 +49,27 @@ are copied from <dir> into dist. <dir> defaults to the current directory.
   },
 
   publish: {
-    usage: `Usage: kodeks publish [--packages a,b] [--dry-run]
+    usage: `Usage: kodeks publish [--packages a,b] [--publish-dir <dir>] [--dry-run]
 
-Publishes each package from its built <packagesDir>/<package>/dist, in the listed order.
+Publishes each package in <packagesDir>/<package>, in the listed order. A package publishes
+from its dist directory when the build wrote dist/package.json, and from its own directory
+otherwise. "publishDir" in ${CONFIG_FILE} picks the directory instead. Without "packages",
+a repository whose root package.json is not private publishes that root package.
 Versions already on npm are skipped. A prerelease such as 1.2.3-beta.0 publishes under
 the "beta" dist-tag, a plain version under "latest", and a stable version below the current
 "latest" under "latest-<major>". A missing GitHub Release is created for
 each version published in this run, and for each earlier version whose npm gitHead is a
 commit of this repository. "releaseTag" in ${CONFIG_FILE} picks the tags: "version" for one
 "v<version>" release (packages in lockstep), "package" for one "<name>@<version>" release per
-package. It defaults to "version" for one package and "package" for several.
+package. It defaults to "version" for one package and "package" for several. Each release
+carries the version's section of the package's CHANGELOG.md, when it has one.
 
 Runs under npm trusted publishing (OIDC), so no NPM_TOKEN is needed. Requires npm 11.5.1
 or newer, and GITHUB_TOKEN to create releases.
 
 Options:
   --packages <list>   Comma-separated package directories (default: "packages" in ${CONFIG_FILE})
+  --publish-dir <dir> Directory inside each package to publish (default: "publishDir" in ${CONFIG_FILE})
   --dry-run           Print the publish and release decisions without publishing
   -h, --help          Show this help
 `,
@@ -72,13 +79,21 @@ Options:
         options: {
           ...HELP_OPTION,
           packages: { type: "string" },
+          "publish-dir": { type: "string" },
           "dry-run": { type: "boolean" },
         },
       })
 
       const root = process.cwd()
       const config = await loadReleaseConfig(root)
-      const packages = parseList(values.packages) ?? config.packages ?? []
+      let packagesDir = config.packagesDir ?? DEFAULT_PACKAGES_DIR
+      let packages = parseList(values.packages) ?? config.packages ?? []
+
+      // A single-package repository needs no config: its root package is the one to publish.
+      if (!packages.length && (await isPublicRootPackage(root))) {
+        packagesDir = "."
+        packages = ["."]
+      }
 
       if (!packages.length) {
         throw new Error(
@@ -88,8 +103,9 @@ Options:
 
       await publish({
         root,
-        packagesDir: config.packagesDir ?? DEFAULT_PACKAGES_DIR,
+        packagesDir,
         packages,
+        publishDir: values["publish-dir"] ?? config.publishDir,
         releaseTag: config.releaseTag,
         dryRun: values["dry-run"] ?? false,
       })
@@ -137,6 +153,7 @@ Options:
         packagesDir,
         packages: parseList(values.packages) ?? sync.packages ?? config.packages ?? [],
         publishPackages: config.packages,
+        publishDir: config.publishDir,
         releaseTag: config.releaseTag,
         licenseFrom: values["license-from"] ?? sync.licenseFrom,
         extra: [...(sync.extra ?? []), ...(values.extra ?? [])].map(parseExtra),
@@ -150,27 +167,40 @@ Options:
   changesets: {
     usage: `Usage: kodeks changesets init [--force]
 
-Writes .changeset/config.json for a monorepo whose public packages are published from a
-mirror: private packages are never versioned, and changelog entries carry no links to the
-private repository. Fill in "fixed" to release packages in lockstep.
+Writes .changeset/config.json. Private packages are never versioned. Changelog entries
+carry no links by default, which suits packages published from a public mirror of a private
+monorepo. Pass --repo for a public repository, so each entry links to its commit.
+Fill in "fixed" to release packages in lockstep.
 
 Options:
-  --force     Replace an existing .changeset/config.json
-  -h, --help  Show this help
+  --repo <owner/name>  Link changelog entries to commits in this GitHub repository
+  --force              Replace an existing .changeset/config.json
+  -h, --help           Show this help
 `,
     async run(args) {
       const { values, positionals } = parseArgs({
         args,
-        options: { ...HELP_OPTION, force: { type: "boolean" } },
+        options: { ...HELP_OPTION, force: { type: "boolean" }, repo: { type: "string" } },
         allowPositionals: true,
       })
 
       if (positionals[0] !== "init") throw new Error('Unknown subcommand. Use "changesets init".')
 
-      const configPath = await initChangesets(process.cwd(), values.force ?? false)
+      const configPath = await initChangesets(process.cwd(), {
+        force: values.force ?? false,
+        repo: values.repo,
+      })
       console.log(`wrote ${path.relative(process.cwd(), configPath)}`)
     },
   },
+}
+
+async function isPublicRootPackage(root: string): Promise<boolean> {
+  const manifest = await readJson<PackageJson>(path.join(root, "package.json")).catch(
+    () => undefined,
+  )
+
+  return Boolean(manifest?.name && !manifest.private)
 }
 
 async function main(argv: string[]) {

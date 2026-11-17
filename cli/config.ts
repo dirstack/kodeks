@@ -15,6 +15,7 @@ export type ReleaseTag = "version" | "package"
 export interface ReleaseConfig {
   packagesDir?: string // Directory holding the package directories. Defaults to `packages`.
   packages?: string[] // Package directories to publish, in publish order.
+  publishDir?: string // Directory inside each package that npm publishes. Defaults to `dist` when it holds a package.json, else the package itself.
   releaseTag?: ReleaseTag // Defaults to `version` for one package, `package` for several.
   sync?: SyncConfig
 }
@@ -34,7 +35,7 @@ export function parseReleaseConfig(raw: unknown): ReleaseConfig {
   assertField(typeof raw === "object" && raw !== null && !Array.isArray(raw), "root", "an object")
 
   const config = raw as ReleaseConfig
-  const { packagesDir, packages, releaseTag, sync } = config
+  const { packagesDir, packages, publishDir, releaseTag, sync } = config
 
   assertField(
     packagesDir === undefined || typeof packagesDir === "string",
@@ -42,6 +43,7 @@ export function parseReleaseConfig(raw: unknown): ReleaseConfig {
     "a string",
   )
   assertField(packages === undefined || isStringArray(packages), "packages", "an array of strings")
+  assertField(publishDir === undefined || typeof publishDir === "string", "publishDir", "a string")
   assertField(
     releaseTag === undefined || releaseTag === "version" || releaseTag === "package",
     "releaseTag",

@@ -1,7 +1,7 @@
-# Reusable workflow for a private monorepo that publishes its public packages from a mirror.
-# It only versions: when changesets are pending it opens or updates the "Version Packages"
-# pull request. Merging that pull request bumps the versions on the default branch, the sync
-# workflow mirrors them, and the mirror publishes them.
+# Reusable workflow that only versions: when changesets are pending it opens or updates the
+# "Version Packages" pull request. Merging that pull request bumps the versions on the
+# default branch. The release workflow then publishes them, in the same repository or, for a
+# private monorepo, in its public mirror after the sync workflow.
 #
 # The calling job must grant `contents: write` and `pull-requests: write`. A pull request
 # opened with the default GITHUB_TOKEN starts no workflows, so CI does not run on it. Pass
@@ -13,6 +13,10 @@ on:
     inputs:
       bun-version:
         description: Bun version. Empty reads `packageManager` from package.json.
+        type: string
+        default: ""
+      bun-version-file:
+        description: File that holds the Bun version, such as `.bun-version`. Overrides `bun-version`.
         type: string
         default: ""
       install-command:
@@ -49,6 +53,7 @@ jobs:
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: ${{ inputs.bun-version }}
+          bun-version-file: ${{ inputs.bun-version-file }}
 
       # The registry occasionally fails mid-download, so the install gets three attempts.
       - name: Install dependencies

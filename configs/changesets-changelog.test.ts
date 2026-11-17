@@ -8,6 +8,24 @@ describe("getReleaseLine", () => {
     )
   })
 
+  it("should link the commit when a repository is configured", async () => {
+    const line = await changelog.getReleaseLine(
+      { summary: "Add a tierId placement option.", commit: "abc1234def5678" },
+      "minor",
+      { repo: "acme/sdk" },
+    )
+
+    expect(line).toBe(
+      "- Add a tierId placement option. ([abc1234](https://github.com/acme/sdk/commit/abc1234def5678))",
+    )
+  })
+
+  it("should leave out the commit without a repository", async () => {
+    const line = await changelog.getReleaseLine({ summary: "Fix tracking.", commit: "abc1234" })
+
+    expect(line).toBe("- Fix tracking.")
+  })
+
   it("should indent the lines after the first one", async () => {
     const line = await changelog.getReleaseLine({
       summary: "Rename weightGte to weight.\n\nThe range filter accepts gte and lt.",
