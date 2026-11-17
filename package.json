@@ -56,6 +56,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "version-packages": "bun run build && changeset version",
     "clean": "rm -rf dist",
     "lint": "oxlint",
     "format:check": "oxfmt --check .",
