@@ -32,6 +32,10 @@ on:
         description: Command that builds every package's dist directory.
         type: string
         default: bun run build
+      publish-command:
+        description: Command that runs `kodeks publish`. Kodeks itself runs its own built CLI.
+        type: string
+        default: bunx kodeks publish
 
 jobs:
   release:
@@ -71,6 +75,7 @@ jobs:
           BUILD_COMMAND: ${{ inputs.build-command }}
 
       - name: Publish and release
-        run: bunx kodeks publish
+        run: bash -c "$PUBLISH_COMMAND"
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          PUBLISH_COMMAND: ${{ inputs.publish-command }}
