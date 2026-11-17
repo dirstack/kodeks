@@ -2,7 +2,13 @@
 import path from "node:path"
 import { parseArgs } from "node:util"
 import { initChangesets } from "./changesets.ts"
-import { CONFIG_FILE, DEFAULT_PACKAGES_DIR, loadReleaseConfig, parseList } from "./config.ts"
+import {
+  CONFIG_FILE,
+  DEFAULT_PACKAGES_DIR,
+  LEGACY_CONFIG_FILE,
+  loadReleaseConfig,
+  parseList,
+} from "./config.ts"
 import { readJson } from "./json.ts"
 import type { PackageJson } from "./prepare-package.ts"
 import { preparePackage } from "./prepare-package.ts"
@@ -14,7 +20,7 @@ interface Command {
   run(args: string[]): Promise<void>
 }
 
-const HELP = `Usage: kodeks <command> [options]
+const HELP = `Usage: underpin <command> [options]
 
 Commands:
   prepare-package [dir]   Write the publishable dist/package.json for a package
@@ -23,16 +29,16 @@ Commands:
   changesets init         Write a Changesets config
 
 Options:
-  -h, --help              Show help for kodeks or a command
+  -h, --help              Show help for underpin or a command
 
-Defaults are read from ${CONFIG_FILE} in the current directory.
+Defaults are read from ${CONFIG_FILE} (or ${LEGACY_CONFIG_FILE}) in the current directory.
 `
 
 const HELP_OPTION = { help: { type: "boolean", short: "h" } } as const
 
 const commands: Record<string, Command> = {
   "prepare-package": {
-    usage: `Usage: kodeks prepare-package [dir]
+    usage: `Usage: underpin prepare-package [dir]
 
 Writes <dir>/dist/package.json, the manifest npm publishes. Entry points move from
 ./src/*.ts to the built ./*.js and ./*.d.ts files, nested conditions included, and main,
@@ -49,7 +55,7 @@ are copied from <dir> into dist. <dir> defaults to the current directory.
   },
 
   publish: {
-    usage: `Usage: kodeks publish [--packages a,b] [--publish-dir <dir>] [--dry-run]
+    usage: `Usage: underpin publish [--packages a,b] [--publish-dir <dir>] [--dry-run]
 
 Publishes each package in <packagesDir>/<package>, in the listed order. A package publishes
 from its dist directory when the build wrote dist/package.json, and from its own directory
@@ -113,7 +119,7 @@ Options:
   },
 
   "sync-public": {
-    usage: `Usage: kodeks sync-public --target <dir> [--packages <list>] [--license-from <path>] [--extra <path>...] [--packages-only]
+    usage: `Usage: underpin sync-public --target <dir> [--packages <list>] [--license-from <path>] [--extra <path>...] [--packages-only]
 
 Mirrors packages from this monorepo into a checkout of the public repository. Each listed
 package directory in the target is replaced, and every other package in the target stays.
@@ -171,7 +177,7 @@ Options:
   },
 
   changesets: {
-    usage: `Usage: kodeks changesets init [--force]
+    usage: `Usage: underpin changesets init [--force]
 
 Writes .changeset/config.json. Private packages are never versioned. Changelog entries
 carry no links by default, which suits packages published from a public mirror of a private
@@ -234,7 +240,7 @@ async function main(argv: string[]) {
     await command.run(args)
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    process.stderr.write(`kodeks ${name}: ${message}\n`)
+    process.stderr.write(`underpin ${name}: ${message}\n`)
     process.exitCode = 1
   }
 }

@@ -1,4 +1,4 @@
-# @underpin/kodeks
+# @underpin/config
 
 ## 1.11.0
 

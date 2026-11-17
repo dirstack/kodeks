@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises"
+import { access, readFile } from "node:fs/promises"
 import path from "node:path"
 
 interface SyncConfig {
@@ -21,18 +21,33 @@ export interface ReleaseConfig {
   sync?: SyncConfig
 }
 
-export const CONFIG_FILE = "kodeks.release.json"
+export const CONFIG_FILE = "underpin.release.json"
+// The config file's name before the package was renamed. A repository that only has this file
+// keeps working.
+export const LEGACY_CONFIG_FILE = "kodeks.release.json"
 export const DEFAULT_PACKAGES_DIR = "packages"
 
 function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every(item => typeof item === "string")
 }
 
+class ConfigFieldError extends Error {}
+
 function assertField(condition: boolean, field: string, expected: string) {
-  if (!condition) throw new Error(`${CONFIG_FILE}: "${field}" must be ${expected}.`)
+  if (!condition) throw new ConfigFieldError(`"${field}" must be ${expected}.`)
 }
 
-export function parseReleaseConfig(raw: unknown): ReleaseConfig {
+// Parses the config read from `file`, whose name prefixes every error.
+export function parseReleaseConfig(raw: unknown, file: string = CONFIG_FILE): ReleaseConfig {
+  try {
+    return validateReleaseConfig(raw)
+  } catch (error) {
+    if (error instanceof ConfigFieldError) throw new Error(`${file}: ${error.message}`)
+    throw error
+  }
+}
+
+function validateReleaseConfig(raw: unknown): ReleaseConfig {
   assertField(typeof raw === "object" && raw !== null && !Array.isArray(raw), "root", "an object")
 
   const config = raw as ReleaseConfig
@@ -83,16 +98,33 @@ export function parseReleaseConfig(raw: unknown): ReleaseConfig {
   return config
 }
 
+async function exists(file: string): Promise<boolean> {
+  return access(file).then(
+    () => true,
+    () => false,
+  )
+}
+
+// Returns the name of the config file in `directory`: the current name, or the legacy name when
+// only that file exists. A directory with neither gets the current name.
+export async function resolveConfigFile(directory: string): Promise<string> {
+  if (await exists(path.join(directory, CONFIG_FILE))) return CONFIG_FILE
+  if (await exists(path.join(directory, LEGACY_CONFIG_FILE))) return LEGACY_CONFIG_FILE
+
+  return CONFIG_FILE
+}
+
 export async function loadReleaseConfig(root: string): Promise<ReleaseConfig> {
+  const file = await resolveConfigFile(root)
   let raw: string
 
   try {
-    raw = await readFile(path.join(root, CONFIG_FILE), "utf8")
+    raw = await readFile(path.join(root, file), "utf8")
   } catch {
     return {}
   }
 
-  return parseReleaseConfig(JSON.parse(raw))
+  return parseReleaseConfig(JSON.parse(raw), file)
 }
 
 export function parseList(value: string | undefined): string[] | undefined {

@@ -32,5 +32,5 @@ jobs:
     with:
       # CI does not run on the "Version Packages" pull request, so check again before publishing.
       build-command: bun run lint && bun run format:check && bun run typecheck && bun run test && bun run build
-      # `bunx kodeks` would resolve the unrelated `kodeks` package on npm, not this repository.
-      publish-command: node dist/cli/kodeks.js publish
+      # Runs this repository's own build, never a published version of the CLI.
+      publish-command: node dist/cli/underpin.js publish

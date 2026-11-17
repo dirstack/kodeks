@@ -117,7 +117,7 @@ async function exists(file: string): Promise<boolean> {
 }
 
 // Without a configured publishDir, a package publishes from `dist` when the build wrote a
-// manifest there (`kodeks prepare-package`), and from its own directory otherwise.
+// manifest there (`underpin prepare-package`), and from its own directory otherwise.
 async function resolvePublishDirectory(packageDirectory: string, publishDir?: string) {
   if (publishDir !== undefined) return path.join(packageDirectory, publishDir)
 
