@@ -177,6 +177,22 @@ async function copyEntry(source: string, destination: string) {
   await copyFile(source, destination)
 }
 
+// Throws when a directory on the way from the target to the subpath is a symlink, so a mirror
+// that commits one cannot point the sync's deletes and writes outside the target.
+async function assertNoSymlink(target: string, subpath: string) {
+  let current = target
+
+  for (const segment of path.normalize(subpath).split(path.sep)) {
+    current = path.join(current, segment)
+    const stats = await lstat(current).catch(() => undefined)
+
+    if (!stats) return
+    if (stats.isSymbolicLink()) {
+      throw new Error(`${path.relative(target, current)} in the target is a symlink.`)
+    }
+  }
+}
+
 async function getPublicPackages(root: string, packagesDir: string, packages: string[]) {
   const publicPackages: string[] = []
 
@@ -219,6 +235,10 @@ export async function syncPublic(options: SyncOptions): Promise<string[]> {
 
   // Replace each listed package directory. Packages the mirror holds that are not listed, its
   // .git and its other root files stay.
+  for (const packageName of packages) {
+    await assertNoSymlink(target, path.join(packagesDir, packageName))
+  }
+
   for (const packageName of packages) {
     await rm(path.join(target, packagesDir, packageName), { recursive: true, force: true })
   }
